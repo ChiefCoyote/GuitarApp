@@ -20,7 +20,11 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.GuitarApp">
+            android:theme="@style/Theme.GuitarApp"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize"
+            tools:ignore="DiscouragedApi">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
