@@ -1,7 +1,6 @@
 package com.example.guitarapp.ui.features.camera.hand_tracking
 
 import android.graphics.Color
-import android.view.Surface
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.widget.LinearLayout
 import androidx.camera.core.CameraSelector
@@ -73,7 +72,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
 
         preview = camPreview.Builder()
             .setResolutionSelector(resolutionSelector)
-            .setTargetRotation(context.display.rotation ?: Surface.ROTATION_90)
+            .setTargetRotation(context.display.rotation)
             .build()
 
         imageAnalysis = ImageAnalysis.Builder()
@@ -107,27 +106,6 @@ private fun CameraContent(viewModel: CameraViewModel) {
 
     }, ContextCompat.getMainExecutor(context))
 
-    /*val cameraSelector = CameraSelector.Builder()
-        .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
-        .build()*/
-
-    //cameraController.setCameraSelector(cameraSelector)
-
-    /*cameraController.setImageAnalysisAnalyzer(backgroundExecutor) { imageProxy ->
-        imageProxy.use { anImageProxy ->
-            viewModel.detectHand(anImageProxy)
-        }
-    }*/
-
-
-
-
-    /*LaunchedEffect(previewView) {
-
-        previewView.controller = cameraController
-
-        cameraController.bindToLifecycle(lifecycleOwner)
-    }*/
 
     Scaffold(
         modifier = Modifier.fillMaxSize()
