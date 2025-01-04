@@ -30,6 +30,7 @@ class CameraViewModel : ViewModel() {
     suspend fun onResultsReceived(resultBundle: HandLandmarkerHelper.ResultBundle) {
         withContext(Dispatchers.Main) {
             _handTrackingResult.value = Result.Success(resultBundle)
+            //println(handTrackingResult.value)
         }
 
     }
@@ -41,27 +42,27 @@ class CameraViewModel : ViewModel() {
     }
 
     fun startHandTracking(context: Context, backgroundExecutor: Executor) {
-            backgroundExecutor.execute {
-                handLandmarkerHelper = HandLandmarkerHelper(
-                    runningMode = RunningMode.LIVE_STREAM,
-                    context = context,
-                    handLandmarkerHelperListener = object :
-                        HandLandmarkerHelper.LandmarkerListener {
-                        override fun onError(error: String, errorCode: Int) {
-                            viewModelScope.launch {
-                                onErrorReceived(error, errorCode)
-                            }
-                        }
-
-                        override fun onResults(resultBundle: HandLandmarkerHelper.ResultBundle) {
-                            viewModelScope.launch {
-                                println(resultBundle.results)
-                                onResultsReceived(resultBundle)
-                            }
+        backgroundExecutor.execute {
+            handLandmarkerHelper = HandLandmarkerHelper(
+                runningMode = RunningMode.LIVE_STREAM,
+                context = context,
+                handLandmarkerHelperListener = object :
+                    HandLandmarkerHelper.LandmarkerListener {
+                    override fun onError(error: String, errorCode: Int) {
+                        viewModelScope.launch {
+                            onErrorReceived(error, errorCode)
                         }
                     }
-                )
-            }
+
+                    override fun onResults(resultBundle: HandLandmarkerHelper.ResultBundle) {
+                        viewModelScope.launch {
+                            //println(resultBundle.results.first())
+                            onResultsReceived(resultBundle)
+                        }
+                    }
+                }
+            )
+        }
     }
 
     fun detectHand(imageProxy: ImageProxy) {
@@ -73,7 +74,7 @@ class CameraViewModel : ViewModel() {
 }
 
 sealed class Result {
-    object Loading : Result()
+    data object Loading : Result()
     data class Success(val resultBundle: HandLandmarkerHelper.ResultBundle) : Result()
     data class Error(val error: String, val errorCode: Int) : Result()
 }

@@ -9,14 +9,18 @@ import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
@@ -25,6 +29,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.concurrent.Executors
+import kotlin.math.max
 import androidx.camera.core.Preview as camPreview
 
 @Composable
@@ -37,7 +42,16 @@ fun CameraScreen(
 @Composable
 private fun CameraContent(viewModel: CameraViewModel) {
     val cameraState : CameraState by viewModel.state.collectAsStateWithLifecycle()
-    val backgroundExecutor = Executors.newSingleThreadExecutor()
+    val handTrackingResult by viewModel.handTrackingResult.collectAsStateWithLifecycle()
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
+    val backgroundExecutor = remember{ Executors.newSingleThreadExecutor() }
+    DisposableEffect(Unit) {
+        onDispose {
+            backgroundExecutor.shutdown()
+        }
+    }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     //val cameraController = remember { LifecycleCameraController(context) }
@@ -116,8 +130,84 @@ private fun CameraContent(viewModel: CameraViewModel) {
                 .padding(paddingValues),
             factory = { previewView }
         )
+
+        Canvas(modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+        ) {
+            when(handTrackingResult){
+                is Result.Success -> {
+                    val data = (handTrackingResult as Result.Success).resultBundle
+                    val imageWidth = data.inputImageWidth
+                    val imageHeight = data.inputImageHeight
+                    var scaleFactor = max(screenWidth * 1f / imageWidth, screenHeight * 1f / imageHeight)
+                    //scaleFactor = 3f
+                    val blackbarSize = (screenWidth - imageWidth) / 2
+                    val landMarkData =data.results.first()
+                    println(scaleFactor)
+                    println(screenWidth)
+                    println(imageWidth)
+                    println(imageHeight)
+                    println(screenHeight)
+                    //println(landMarkData)
+                    for (landmark in landMarkData.landmarks()){
+                        for (normalisedLandmark in landmark) {
+                            drawCircle(
+                                color = androidx.compose.ui.graphics.Color.Red,
+                                center = Offset(normalisedLandmark.x() * imageWidth,normalisedLandmark.y() * imageHeight),
+                                radius = 10f
+                            )
+                        }
+                    }
+
+                    drawCircle(
+                        color = androidx.compose.ui.graphics.Color.Blue,
+                        center = Offset(0f,0f),
+                        radius = 5f
+                    )
+                    drawCircle(
+                        color = androidx.compose.ui.graphics.Color.Blue,
+                        center = Offset(751f,0f),
+                        radius = 5f
+                    )
+                    drawCircle(
+                        color = androidx.compose.ui.graphics.Color.Blue,
+                        center = Offset(0f,360f),
+                        radius = 5f
+                    )
+                    drawCircle(
+                        color = androidx.compose.ui.graphics.Color.Blue,
+                        center = Offset(751f,360f),
+                        radius = 5f
+                    )
+                }
+
+                is Result.Loading -> {
+                    println("Loading")
+                }
+
+                is Result.Error -> {
+                    println("Error")
+                }
+            }
+        }
     }
 
+}
+
+@Composable
+private fun HandTrackingOverlay(handTrackingResult: Result) {
+    when (handTrackingResult) {
+        is Result.Loading -> {
+            println("Loading")
+        }
+        is Result.Success -> {
+            //println(handTrackingResult.resultBundle.results)
+        }
+        is Result.Error -> {
+            println("Error")
+        }
+    }
 }
 
 
