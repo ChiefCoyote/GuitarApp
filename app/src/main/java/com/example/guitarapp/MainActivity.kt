@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
         val controller = window.insetsController
         if (controller != null) {
             controller.hide(WindowInsets.Type.statusBars())
+            controller.hide(WindowInsets.Type.systemBars())
             controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 

@@ -2,6 +2,7 @@ package com.example.guitarapp.ui.features.camera.hand_tracking
 
 import android.graphics.Color
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.WindowManager
 import android.widget.LinearLayout
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -29,7 +31,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.concurrent.Executors
-import kotlin.math.max
 import androidx.camera.core.Preview as camPreview
 
 @Composable
@@ -44,8 +45,9 @@ private fun CameraContent(viewModel: CameraViewModel) {
     val cameraState : CameraState by viewModel.state.collectAsStateWithLifecycle()
     val handTrackingResult by viewModel.handTrackingResult.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
+    val density = LocalDensity.current.density
+    val screenWidth = configuration.screenWidthDp * density
+    val screenHeight = configuration.screenHeightDp * density
     val backgroundExecutor = remember{ Executors.newSingleThreadExecutor() }
     DisposableEffect(Unit) {
         onDispose {
@@ -55,6 +57,13 @@ private fun CameraContent(viewModel: CameraViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     //val cameraController = remember { LifecycleCameraController(context) }
+
+    val windowManager = context.getSystemService(WindowManager::class.java)
+    val metrics = windowManager?.currentWindowMetrics
+    val bounds = metrics?.bounds
+
+    val width = bounds?.width() ?: 0
+    val height = bounds?.height() ?: 0
 
     var cameraProvider: ProcessCameraProvider
     var preview: camPreview
@@ -140,21 +149,15 @@ private fun CameraContent(viewModel: CameraViewModel) {
                     val data = (handTrackingResult as Result.Success).resultBundle
                     val imageWidth = data.inputImageWidth
                     val imageHeight = data.inputImageHeight
-                    var scaleFactor = max(screenWidth * 1f / imageWidth, screenHeight * 1f / imageHeight)
-                    //scaleFactor = 3f
-                    val blackbarSize = (screenWidth - imageWidth) / 2
+                    val widthScaleFactor = (width * 1f) / imageWidth
+                    val heightScaleFactor = (height * 1f) / imageHeight
+                    val blackbarSize = (width - ((height / 3) * 4)) / 2
                     val landMarkData =data.results.first()
-                    println(scaleFactor)
-                    println(screenWidth)
-                    println(imageWidth)
-                    println(imageHeight)
-                    println(screenHeight)
-                    //println(landMarkData)
                     for (landmark in landMarkData.landmarks()){
                         for (normalisedLandmark in landmark) {
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.Red,
-                                center = Offset(normalisedLandmark.x() * imageWidth,normalisedLandmark.y() * imageHeight),
+                                center = Offset((((normalisedLandmark.x() * imageWidth * widthScaleFactor) / 4 ) * 3),normalisedLandmark.y() * imageHeight * heightScaleFactor),
                                 radius = 10f
                             )
                         }
@@ -162,23 +165,23 @@ private fun CameraContent(viewModel: CameraViewModel) {
 
                     drawCircle(
                         color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(0f,0f),
-                        radius = 5f
+                        center = Offset(0f + blackbarSize,0f),
+                        radius = 50f
                     )
                     drawCircle(
                         color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(751f,0f),
-                        radius = 5f
+                        center = Offset(2340f - blackbarSize,0f),
+                        radius = 50f
                     )
                     drawCircle(
                         color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(0f,360f),
-                        radius = 5f
+                        center = Offset(0f + blackbarSize,1080f),
+                        radius = 50f
                     )
                     drawCircle(
                         color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(751f,360f),
-                        radius = 5f
+                        center = Offset(2340f - blackbarSize,1080f),
+                        radius = 50f
                     )
                 }
 
@@ -193,21 +196,6 @@ private fun CameraContent(viewModel: CameraViewModel) {
         }
     }
 
-}
-
-@Composable
-private fun HandTrackingOverlay(handTrackingResult: Result) {
-    when (handTrackingResult) {
-        is Result.Loading -> {
-            println("Loading")
-        }
-        is Result.Success -> {
-            //println(handTrackingResult.resultBundle.results)
-        }
-        is Result.Error -> {
-            println("Error")
-        }
-    }
 }
 
 
