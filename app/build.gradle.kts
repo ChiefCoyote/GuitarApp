@@ -96,4 +96,7 @@ dependencies {
 
     //HAND TRACKING//
     implementation(libs.tasks.vision)
+
+    //OPEN CV//
+    implementation(libs.opencv)
 }

@@ -157,7 +157,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
                         for (normalisedLandmark in landmark) {
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.Red,
-                                center = Offset((((normalisedLandmark.x() * imageWidth * widthScaleFactor) / 4 ) * 3),normalisedLandmark.y() * imageHeight * heightScaleFactor),
+                                center = Offset((normalisedLandmark.x() * (width - blackbarSize - blackbarSize)) + blackbarSize,normalisedLandmark.y() * imageHeight * heightScaleFactor),
                                 radius = 10f
                             )
                         }
