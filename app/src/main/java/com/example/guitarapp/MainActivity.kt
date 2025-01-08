@@ -12,6 +12,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.guitarapp.ui.MainScreen
 import com.example.guitarapp.ui.theme.GuitarAppTheme
+import org.opencv.android.OpenCVLoader
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,6 +27,10 @@ class MainActivity : ComponentActivity() {
             controller.hide(WindowInsets.Type.statusBars())
             controller.hide(WindowInsets.Type.systemBars())
             controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        if(OpenCVLoader.initLocal()) {
+            println("loaded")
         }
 
         setContent {

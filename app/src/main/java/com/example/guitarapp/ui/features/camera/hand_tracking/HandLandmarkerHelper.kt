@@ -24,6 +24,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.camera.core.ImageProxy
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.google.mediapipe.framework.image.BitmapExtractor
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -31,6 +32,9 @@ import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+
 
 class HandLandmarkerHelper (
     var runningMode: RunningMode = RunningMode.LIVE_STREAM,
@@ -190,9 +194,12 @@ class HandLandmarkerHelper (
         val finishTimeMs = SystemClock.uptimeMillis()
         val inferenceTime = finishTimeMs - result.timestampMs()
 
+        val something = guitarLandmarks(input)
+
         handLandmarkerHelperListener?.onResults(
             ResultBundle(
                 listOf(result),
+                something,
                 inferenceTime,
                 input.height,
                 input.width
@@ -206,6 +213,15 @@ class HandLandmarkerHelper (
         handLandmarkerHelperListener?.onError(
             error.message ?: "An unknown error has occurred"
         )
+    }
+
+    private fun guitarLandmarks(input: MPImage): List<Int> {
+        val image = BitmapExtractor.extract(input)
+        println(image)
+        val mat = Mat()
+        Utils.bitmapToMat(image, mat)
+        println(mat)
+        return listOf(1,2,3,4)
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -230,6 +246,7 @@ class HandLandmarkerHelper (
 
     data class ResultBundle(
         val results: List<HandLandmarkerResult>,
+        val guitar: List<Int>,
         val inferenceTime: Long,
         val inputImageHeight: Int,
         val inputImageWidth: Int,
