@@ -33,7 +33,13 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import org.opencv.android.Utils
+import org.opencv.core.CvType
 import org.opencv.core.Mat
+import org.opencv.core.Point
+import org.opencv.core.Scalar
+import org.opencv.core.Size
+import org.opencv.imgproc.CLAHE
+import org.opencv.imgproc.Imgproc
 
 
 class HandLandmarkerHelper (
@@ -194,12 +200,12 @@ class HandLandmarkerHelper (
         val finishTimeMs = SystemClock.uptimeMillis()
         val inferenceTime = finishTimeMs - result.timestampMs()
 
-        val something = guitarLandmarks(input)
+        val cvImage = guitarLandmarks(input)
 
         handLandmarkerHelperListener?.onResults(
             ResultBundle(
                 listOf(result),
-                something,
+                cvImage,
                 inferenceTime,
                 input.height,
                 input.width
@@ -215,13 +221,61 @@ class HandLandmarkerHelper (
         )
     }
 
-    private fun guitarLandmarks(input: MPImage): List<Int> {
+    private fun guitarLandmarks(input: MPImage): Bitmap {
         val image = BitmapExtractor.extract(input)
         println(image)
-        val mat = Mat()
+        val mat = Mat(image.height, image.width, CvType.CV_8UC4)
         Utils.bitmapToMat(image, mat)
-        println(mat)
-        return listOf(1,2,3,4)
+        //println(mat)
+
+        val grayMat = Mat()
+        val edgesMat = Mat()
+        val lines = Mat()
+        val colorMat = Mat()
+
+        Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY)
+
+        Imgproc.GaussianBlur(grayMat, grayMat, Size(5.0, 5.0), 1.6)
+
+        val clahe: CLAHE = Imgproc.createCLAHE(0.75, Size(16.0, 16.0))
+        clahe.apply(grayMat, grayMat)
+
+        Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
+
+
+        Imgproc.HoughLinesP(edgesMat, lines, 1.0, Math.PI / 180, 100, 50.0, 10.0)
+
+        println(lines)
+
+        /*for (i in (0 until lines.rows())){
+            var line = lines.get(i, 0)
+            println(line[0])
+            println(line[1])
+            println(line[2])
+            println(line[3])
+        }*/
+
+        Imgproc.cvtColor(edgesMat, colorMat, Imgproc.COLOR_GRAY2BGR)
+
+        for(i in 0 until lines.rows()){
+            val line = lines.get(i, 0)
+            println(line)
+            val x1 = line[0].toInt()
+            println(x1)
+            val y1 = line[1].toInt()
+            println(y1)
+            val x2 = line[2].toInt()
+            println(x2)
+            val y2 = line[3].toInt()
+            println(y2)
+            println("Line: ($x1, $y1) to ($x2, $y2)")
+            Imgproc.line(colorMat, Point(x1.toDouble(), y1.toDouble()), Point(x2.toDouble(), y2.toDouble()), Scalar(0.0, 255.0, 0.0), 2)
+        }
+
+        val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
+        Utils.matToBitmap(colorMat, finalBitmap)
+
+        return finalBitmap
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -246,7 +300,7 @@ class HandLandmarkerHelper (
 
     data class ResultBundle(
         val results: List<HandLandmarkerResult>,
-        val guitar: List<Int>,
+        val guitar: Bitmap,
         val inferenceTime: Long,
         val inputImageHeight: Int,
         val inputImageWidth: Int,

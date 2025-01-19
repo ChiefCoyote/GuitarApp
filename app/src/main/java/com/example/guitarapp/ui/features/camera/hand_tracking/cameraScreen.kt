@@ -11,6 +11,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -140,6 +142,30 @@ private fun CameraContent(viewModel: CameraViewModel) {
             factory = { previewView }
         )
 
+        when(handTrackingResult) {
+            is Result.Success -> {
+                val data = (handTrackingResult as Result.Success).resultBundle
+                val bitmap = data.guitar
+
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "openCV",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                )
+
+            }
+
+            is Result.Loading -> {
+                println("Loading")
+            }
+
+            is Result.Error -> {
+                println("Error")
+            }
+        }
+
         Canvas(modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
@@ -153,7 +179,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
                     val heightScaleFactor = (height * 1f) / imageHeight
                     val blackbarSize = (width - ((height / 3) * 4)) / 2
                     val landMarkData =data.results.first()
-                    for (landmark in landMarkData.landmarks()){
+                    /*for (landmark in landMarkData.landmarks()){
                         for (normalisedLandmark in landmark) {
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.Red,
@@ -161,7 +187,10 @@ private fun CameraContent(viewModel: CameraViewModel) {
                                 radius = 10f
                             )
                         }
-                    }
+                    }*/
+
+
+
 
                     drawCircle(
                         color = androidx.compose.ui.graphics.Color.Blue,
