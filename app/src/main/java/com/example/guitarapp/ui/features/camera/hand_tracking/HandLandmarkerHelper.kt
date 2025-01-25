@@ -40,6 +40,8 @@ import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.imgproc.CLAHE
 import org.opencv.imgproc.Imgproc
+import kotlin.math.abs
+import kotlin.math.round
 
 
 class HandLandmarkerHelper (
@@ -223,7 +225,7 @@ class HandLandmarkerHelper (
 
     private fun guitarLandmarks(input: MPImage): Bitmap {
         val image = BitmapExtractor.extract(input)
-        println(image)
+        //println(image)
         val mat = Mat(image.height, image.width, CvType.CV_8UC4)
         Utils.bitmapToMat(image, mat)
         //println(mat)
@@ -242,10 +244,12 @@ class HandLandmarkerHelper (
 
         Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
 
+        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        Imgproc.dilate(edgesMat, edgesMat, kernel)
 
-        Imgproc.HoughLinesP(edgesMat, lines, 1.0, Math.PI / 180, 100, 50.0, 10.0)
+        Imgproc.HoughLinesP(edgesMat, lines, 1.0, Math.PI / 180, 100, 25.0, 10.0)
 
-        println(lines)
+        //println(lines)
 
         /*for (i in (0 until lines.rows())){
             var line = lines.get(i, 0)
@@ -257,19 +261,86 @@ class HandLandmarkerHelper (
 
         Imgproc.cvtColor(edgesMat, colorMat, Imgproc.COLOR_GRAY2BGR)
 
+        val verticalLines = mutableListOf<Pair<Point, Point>>()
+        val horizontalLines = mutableListOf<Pair<Point, Point>>()
+
+        val gradientGroups = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+
         for(i in 0 until lines.rows()){
             val line = lines.get(i, 0)
-            println(line)
-            val x1 = line[0].toInt()
-            println(x1)
-            val y1 = line[1].toInt()
-            println(y1)
-            val x2 = line[2].toInt()
-            println(x2)
-            val y2 = line[3].toInt()
-            println(y2)
-            println("Line: ($x1, $y1) to ($x2, $y2)")
-            Imgproc.line(colorMat, Point(x1.toDouble(), y1.toDouble()), Point(x2.toDouble(), y2.toDouble()), Scalar(0.0, 255.0, 0.0), 2)
+            //println(line)
+            val x1 = line[0].toDouble()
+            //println(x1)
+            val y1 = line[1].toDouble()
+            //println(y1)
+            val x2 = line[2].toDouble()
+            //println(x2)
+            val y2 = line[3].toDouble()
+
+            val slope = if (x2 - x1 == 0.0) Double.POSITIVE_INFINITY else (y2 - y1) / (x2 - x1)
+
+            if (abs(slope) > 0.75) { // High slope -> Vertical
+                verticalLines.add(Point(x1, y1) to Point(x2, y2))
+            } else { // Low slope -> Horizontal
+                horizontalLines.add(Point(x1, y1) to Point(x2, y2))
+                val roundedGradient = "%.1f".format(slope).toDouble()
+                //val roundedGradient = round(slope)
+                gradientGroups.computeIfAbsent(roundedGradient) { mutableListOf() }.add(Point(x1, y1) to Point(x2, y2))
+            }
+
+
+
+            //println("Line: ($x1, $y1) to ($x2, $y2)")
+            //Imgproc.line(colorMat, Point(x1, y1), Point(x2, y2), Scalar(0.0, 255.0, 0.0), 2)
+        }
+
+
+        //println(gradientGroups.keys.size)
+
+
+        val largestList = gradientGroups.maxByOrNull { it.value.size }?.key
+
+        val stringList = gradientGroups[largestList]
+        var gradient = 0.0
+
+        val lineGroups = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+        val intercepts = mutableSetOf<Double>()
+        if (stringList != null) {
+            for(line in stringList){
+                if(largestList != null){
+                    gradient = if (line.second.x - line.first.x == 0.0) Double.POSITIVE_INFINITY else (line.second.y - line.first.y) / (line.second.x - line.first.x)
+                    var intercept = 0.0
+                    if(line.first.x == 0.0 || gradient == 0.0){
+                        intercept = line.first.y
+                    } else{
+                        intercept = line.first.y / (gradient * line.first.x)
+                    }
+                    if(intercept > 10000.0){
+                        println("wow")
+                        println(gradient)
+                        println(line.first.x)
+                        println(line.first.y)
+                    }
+                    intercepts.add(round(intercept / 10) * 10)
+                    lineGroups.computeIfAbsent(round(intercept / 10) * 10) { mutableListOf() }.add(line)
+                    //Imgproc.line(colorMat, line.first, line.second, Scalar(255.0, 0.0, 0.0), 2)
+                }
+
+            }
+        }
+        // GROUP LINES TOGETHER BASED ON TRAJECTORY
+
+        println(intercepts.size)
+        println(lineGroups.keys.size)
+        println(lineGroups.keys)
+
+        for(intercept in intercepts) {
+            val y1 = intercept
+            val x1 = 0.0
+            val x2 = colorMat.width()
+            val y2 = x2 * gradient + intercept
+
+            Imgproc.line(colorMat, Point(x1,y1), Point(x2.toDouble(),y2), Scalar(255.0, 0.0, 0.0), 2)
         }
 
         val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
