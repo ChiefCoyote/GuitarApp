@@ -41,7 +41,10 @@ import org.opencv.core.Size
 import org.opencv.imgproc.CLAHE
 import org.opencv.imgproc.Imgproc
 import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.pow
 import kotlin.math.round
+import kotlin.math.sqrt
 
 
 class HandLandmarkerHelper (
@@ -269,13 +272,18 @@ class HandLandmarkerHelper (
         for(i in 0 until lines.rows()){
             val line = lines.get(i, 0)
             //println(line)
-            val x1 = line[0].toDouble()
+            var x1 = line[0].toDouble()
             //println(x1)
             val y1 = line[1].toDouble()
             //println(y1)
-            val x2 = line[2].toDouble()
+            var x2 = line[2].toDouble()
             //println(x2)
             val y2 = line[3].toDouble()
+
+            if (x1 > x2){
+                x1 = x2.also { x2 = x1 }
+            }
+
 
             val slope = if (x2 - x1 == 0.0) Double.POSITIVE_INFINITY else (y2 - y1) / (x2 - x1)
 
@@ -300,11 +308,15 @@ class HandLandmarkerHelper (
 
         val largestList = gradientGroups.maxByOrNull { it.value.size }?.key
 
-        val stringList = gradientGroups[largestList]
+        var stringList = gradientGroups[largestList]
         var gradient = 0.0
+
+        val lineLengths = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
 
         val lineGroups = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
         val intercepts = mutableSetOf<Double>()
+
+        //Determine the y intercept of each line
         if (stringList != null) {
             for(line in stringList){
                 if(largestList != null){
@@ -323,30 +335,122 @@ class HandLandmarkerHelper (
                     }
                     intercepts.add(round(intercept / 10) * 10)
                     lineGroups.computeIfAbsent(round(intercept / 10) * 10) { mutableListOf() }.add(line)
-                    //Imgproc.line(colorMat, line.first, line.second, Scalar(255.0, 0.0, 0.0), 2)
+                    Imgproc.line(colorMat, line.first, line.second, Scalar(255.0, 0.0, 0.0), 2)
                 }
 
+                val length = sqrt((line.second.x - line.first.y).pow(2) + (line.second.y - line.first.y).pow(2))
+                lineLengths.computeIfAbsent(length) { mutableListOf() }.add(line)
             }
         }
         // GROUP LINES TOGETHER BASED ON TRAJECTORY
 
-        println(intercepts.size)
-        println(lineGroups.keys.size)
-        println(lineGroups.keys)
+        //println("lengthNum")
+        //println(lineLengths.keys.size)
+        //println(intercepts.size)
+        //println(lineGroups.keys.size)
+        //println(lineGroups.keys)
 
-        for(intercept in intercepts) {
+        //SHOW THE LINES IN THE 10 LONGEST GROUPS
+        /*for (longLine in 0..9) {
+            val sortedLengths = lineLengths.keys.sortedDescending()
+            val lineData = lineLengths[sortedLengths[longLine]]
+            if (lineData != null) {
+                for(eachLine in lineData)
+                    Imgproc.line(colorMat, eachLine.first, eachLine.second, Scalar(0.0, 0.0, 255.0), 2)
+            }
+        }*/
+
+        //GROUP LINES TOGETHER BASED ON PROXIMITY
+
+
+        //TAKE INTERCEPTS AND DRAW A LINE ACROSS THE WHOLE SCREEN
+        //TOO MANY LINES AND A LOT ARE AT THE TOP
+        /*for(intercept in intercepts) {
             val y1 = intercept
             val x1 = 0.0
             val x2 = colorMat.width()
             val y2 = x2 * gradient + intercept
 
-            Imgproc.line(colorMat, Point(x1,y1), Point(x2.toDouble(),y2), Scalar(255.0, 0.0, 0.0), 2)
+            //Imgproc.line(colorMat, Point(x1,y1), Point(x2.toDouble(),y2), Scalar(255.0, 0.0, 0.0), 2)
+        }*/
+
+
+        //Sort by x1 coord
+        //If there exists a point 2 that  is close enough to point 1, combine the lines together.
+
+        stringList?.sortBy { it.first.x }
+
+        println("stringlist")
+        if (stringList != null) {
+            println(stringList.size)
         }
+
+        val combinedLines = mutableMapOf<Point, Point>()
+        var successfullyCombine = true
+
+        while (successfullyCombine) {
+            combinedLines.clear()
+            successfullyCombine = false
+            if (stringList != null) {
+                for(line in stringList) {
+                    val closePair = combinedLines.entries.find { pointDistance(it.key, line.first) < 10}
+
+                    if(closePair != null){
+                        val startPoint = closePair.value
+                        combinedLines.remove(closePair.key)
+
+                        combinedLines[line.second] = startPoint
+
+                        successfullyCombine = true
+                    } else {
+                        combinedLines[line.second] = line.first
+                    }
+                }
+
+                stringList = combinedLines.map {(key, value) -> Pair(value, key)}.toMutableList()
+
+            }
+
+        }
+        var painted = 255.0
+        var counteed = 0
+        for((key, value) in combinedLines) {
+            //Imgproc.line(colorMat, value, key, Scalar(0.0, 0.0, painted), 2)
+            //painted -= 255.0
+            counteed++
+        }
+
+        val longLines = mutableListOf<Pair<Double, Pair<Point, Point>>>()
+        if (stringList != null) {
+            for(line in stringList) {
+                val length = hypot(line.second.x - line.first.x, line.second.y - line.first.y)
+                longLines.add(Pair(length, line))
+                //Imgproc.line(colorMat, line.first, line.second, Scalar(0.0, 0.0, 255.0), 2)
+            }
+            //Imgproc.line(colorMat, stringList[0].first, stringList[0].second, Scalar(0.0, 0.0, 255.0), 2)
+        }
+        longLines.sortByDescending { it.first }
+        for (longLine in longLines.take(10)) {
+
+            Imgproc.line(colorMat, longLine.second.first, longLine.second.second, Scalar(0.0, 0.0, 255.0), 2)
+        }
+
+
+
+        //Imgproc.line(colorMat, Point(0.0,0.0), Point(255.0, 400.0), Scalar(255.0, 0.0, 0.0), 2)
+
+        println("CombinedLines")
+        println(counteed)
+
 
         val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
         Utils.matToBitmap(colorMat, finalBitmap)
 
         return finalBitmap
+    }
+
+    private fun pointDistance(point1: Point, point2: Point): Double {
+        return hypot(point2.x - point1.x, point2.y - point1.y)
     }
 
     override fun onResume(owner: LifecycleOwner) {
