@@ -393,7 +393,7 @@ class HandLandmarkerHelper (
             successfullyCombine = false
             if (stringList != null) {
                 for(line in stringList) {
-                    val closePair = combinedLines.entries.find { pointDistance(it.key, line.first) < 10}
+                    val closePair = combinedLines.entries.find { pointDistance(it.key, line.first) < 15}
 
                     if(closePair != null){
                         val startPoint = closePair.value
@@ -412,13 +412,13 @@ class HandLandmarkerHelper (
             }
 
         }
+
+
+
+
+
         var painted = 255.0
         var counteed = 0
-        for((key, value) in combinedLines) {
-            //Imgproc.line(colorMat, value, key, Scalar(0.0, 0.0, painted), 2)
-            //painted -= 255.0
-            counteed++
-        }
 
         val longLines = mutableListOf<Pair<Double, Pair<Point, Point>>>()
         if (stringList != null) {
@@ -430,9 +430,65 @@ class HandLandmarkerHelper (
             //Imgproc.line(colorMat, stringList[0].first, stringList[0].second, Scalar(0.0, 0.0, 255.0), 2)
         }
         longLines.sortByDescending { it.first }
-        for (longLine in longLines.take(10)) {
 
-            Imgproc.line(colorMat, longLine.second.first, longLine.second.second, Scalar(0.0, 0.0, 255.0), 2)
+
+        val combinedIntercpet = mutableMapOf<Double, Pair<Point, Point>>()
+
+        //Calculate y intercepts, those that are close in value should be combined with the smallest x1 and greatest x2
+
+
+        // IMPORTANT
+        // ONLY COMBINE LINES IF THEY HAVE OVERLAPPING X COORDINATES
+        // Hopefull avoids cross screen diagonals randomly appearing and may help when extrapolating with hidden sections
+        // MAYBE go through each line and calculate how many are in close proximity, the grouping with the most are the strings
+
+
+        for(line in longLines) {
+            val gradx = if (line.second.second.x - line.second.first.x == 0.0) Double.POSITIVE_INFINITY else (line.second.second.y - line.second.first.y) / (line.second.second.x - line.second.first.x)
+            var intercept = 0.0
+            if(line.second.first.x == 0.0 || gradx == 0.0){
+                intercept = line.second.first.y
+            } else{
+                intercept = line.second.first.y / (gradient * line.second.first.x)
+            }
+
+            val closeIntercept = combinedIntercpet.entries.find { abs(it.key - intercept) < 15 && overlapX(it.value, line.second)}
+            var point1 = Point(0.0, 0.0)
+            var point2 = Point(0.0, 0.0)
+            var key = 0.0
+            if(closeIntercept != null) {
+                if (closeIntercept.value.first.x < line.second.first.x){
+                    point1 = closeIntercept.value.first
+                } else {
+                    point1 = line.second.first
+                }
+                if(closeIntercept.value.second.x > line.second.second.x) {
+                    point2 = closeIntercept.value.second
+                } else {
+                    point2 = line.second.second
+                }
+
+                key = closeIntercept.key
+            } else {
+                key = intercept
+                point1 = line.second.first
+                point2 = line.second.second
+            }
+            combinedIntercpet[key] = Pair(point1, point2)
+        }
+
+
+
+
+        for(line in combinedIntercpet.values) {
+            counteed++
+            Imgproc.line(colorMat, line.first, line.second, Scalar(0.0, 0.0, 255.0), 2)
+
+        }
+
+        for (longLine in longLines.take(6)) {
+
+            //Imgproc.line(colorMat, longLine.second.first, longLine.second.second, Scalar(0.0, 0.0, 255.0), 2)
         }
 
 
@@ -447,6 +503,20 @@ class HandLandmarkerHelper (
         Utils.matToBitmap(colorMat, finalBitmap)
 
         return finalBitmap
+    }
+
+    private fun overlapX(line1: Pair<Point, Point>, line2: Pair<Point, Point>): Boolean {
+        return if (line2.first.x + 10 >= line1.first.x && line2.first.x - 10 <= line1.second.x){
+            true
+        } else if (line2.second.x + 10 >= line1.first.x && line2.second.x - 10 <= line1.second.x) {
+            true
+        } else if (line1.first.x + 10 >= line2.first.x && line1.first.x - 10 <= line2.second.x) {
+            true
+        } else if (line1.second.x + 10 >= line2.first.x && line1.second.x - 10 <= line2.second.x) {
+            true
+        } else{
+            false
+        }
     }
 
     private fun pointDistance(point1: Point, point2: Point): Double {
