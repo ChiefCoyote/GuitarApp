@@ -274,14 +274,15 @@ class HandLandmarkerHelper (
             //println(line)
             var x1 = line[0].toDouble()
             //println(x1)
-            val y1 = line[1].toDouble()
+            var y1 = line[1].toDouble()
             //println(y1)
             var x2 = line[2].toDouble()
             //println(x2)
-            val y2 = line[3].toDouble()
+            var y2 = line[3].toDouble()
 
             if (x1 > x2){
                 x1 = x2.also { x2 = x1 }
+                y1 = y2.also { y2 = y1 }
             }
 
 
@@ -449,7 +450,7 @@ class HandLandmarkerHelper (
             if(line.second.first.x == 0.0 || gradx == 0.0){
                 intercept = line.second.first.y
             } else{
-                intercept = line.second.first.y / (gradient * line.second.first.x)
+                intercept = line.second.first.y / (gradx * line.second.first.x)
             }
 
             val closeIntercept = combinedIntercpet.entries.find { abs(it.key - intercept) < 15 && overlapX(it.value, line.second)}
@@ -462,11 +463,14 @@ class HandLandmarkerHelper (
                 } else {
                     point1 = line.second.first
                 }
-                if(closeIntercept.value.second.x > line.second.second.x) {
-                    point2 = closeIntercept.value.second
+                val x = if (closeIntercept.value.second.x > line.second.second.x) {
+                    closeIntercept.value.second.x
                 } else {
-                    point2 = line.second.second
+                    line.second.second.x
                 }
+                val y = (x * gradx) + intercept
+
+                point2 = Point(x, y)
 
                 key = closeIntercept.key
             } else {
@@ -479,16 +483,22 @@ class HandLandmarkerHelper (
 
 
 
-
+        val strings = mutableListOf<Pair<Double, Pair<Point, Point>>>()
         for(line in combinedIntercpet.values) {
-            counteed++
-            Imgproc.line(colorMat, line.first, line.second, Scalar(0.0, 0.0, 255.0), 2)
+
+            if ("%.1f".format(lineGrad(line.first, line.second)).toDouble() == largestList){
+                counteed++
+                strings.add(Pair(pointDistance(line.first, line.second), Pair(line.first, line.second)))
+
+            }
+
 
         }
+        strings.sortByDescending { it.first }
 
-        for (longLine in longLines.take(6)) {
+        for (guitarString in strings.take(12)) {
+            Imgproc.line(colorMat, guitarString.second.first, guitarString.second.second, Scalar(0.0, 0.0, 255.0), 2)
 
-            //Imgproc.line(colorMat, longLine.second.first, longLine.second.second, Scalar(0.0, 0.0, 255.0), 2)
         }
 
 
@@ -521,6 +531,10 @@ class HandLandmarkerHelper (
 
     private fun pointDistance(point1: Point, point2: Point): Double {
         return hypot(point2.x - point1.x, point2.y - point1.y)
+    }
+
+    private fun lineGrad(point1: Point, point2: Point): Double {
+        return if (point2.x - point1.x == 0.0) Double.POSITIVE_INFINITY else (point2.y - point1.y) / (point2.x - point1.x)
     }
 
     override fun onResume(owner: LifecycleOwner) {
