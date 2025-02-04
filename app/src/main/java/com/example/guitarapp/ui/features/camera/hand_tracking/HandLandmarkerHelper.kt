@@ -40,12 +40,12 @@ import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.imgproc.CLAHE
 import org.opencv.imgproc.Imgproc
+import smile.clustering.xmeans
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.pow
 import kotlin.math.round
 import kotlin.math.sqrt
-
 
 class HandLandmarkerHelper (
     var runningMode: RunningMode = RunningMode.LIVE_STREAM,
@@ -484,17 +484,21 @@ class HandLandmarkerHelper (
 
 
         val strings = mutableListOf<Pair<Double, Pair<Point, Point>>>()
+        val clusterIntercepts = mutableListOf<Double>()
         for(line in combinedIntercpet.values) {
 
             if ("%.1f".format(lineGrad(line.first, line.second)).toDouble() == largestList){
                 counteed++
                 strings.add(Pair(pointDistance(line.first, line.second), Pair(line.first, line.second)))
+                clusterIntercepts.add(findIntercept(line.first, line.second))
 
             }
 
 
         }
         strings.sortByDescending { it.first }
+
+        greatestCluster(clusterIntercepts)
 
         for (guitarString in strings.take(12)) {
             Imgproc.line(colorMat, guitarString.second.first, guitarString.second.second, Scalar(0.0, 0.0, 255.0), 2)
@@ -535,6 +539,33 @@ class HandLandmarkerHelper (
 
     private fun lineGrad(point1: Point, point2: Point): Double {
         return if (point2.x - point1.x == 0.0) Double.POSITIVE_INFINITY else (point2.y - point1.y) / (point2.x - point1.x)
+    }
+
+    private fun findIntercept(point1: Point, point2: Point): Double {
+        val gradient = if (point2.x - point1.x == 0.0) Double.POSITIVE_INFINITY else (point2.y - point1.y) / (point2.x - point1.x)
+        val intercept = if(point1.x == 0.0 || gradient == 0.0){
+            point1.y
+        } else{
+            point1.y / (gradient * point1.x)
+        }
+        return intercept
+    }
+
+    private fun greatestCluster(yValues: List<Double>): Map<Int, List<Double>> {
+        if (yValues.isEmpty()) return emptyMap()
+
+        val yArray = yValues.map { doubleArrayOf(it) }.toTypedArray()
+
+        val clusters = xmeans(yArray, 10)
+
+        val sortClusters = yValues.indices.groupBy { clusters.y[it] }.mapValues { (_, indices) -> indices.map { yValues[it] } }
+
+        println("clusters")
+        for ((cluster, points) in sortClusters) {
+            println(cluster)
+            println(points)
+        }
+        return sortClusters
     }
 
     override fun onResume(owner: LifecycleOwner) {

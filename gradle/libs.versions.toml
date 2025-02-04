@@ -28,6 +28,7 @@ lifecycleRuntimeCompose = "2.9.0-alpha07"
 lifecycleRuntimeKtxVersion = "2.9.0-alpha07"
 lifecycleViewmodelSavedstate = "2.9.0-alpha07"
 materialIconsExtended = "1.5.0-alpha01"
+smileKotlin = "4.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -63,6 +64,7 @@ androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lif
 lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtxVersion" }
 androidx-lifecycle-viewmodel-savedstate = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-savedstate", version.ref = "lifecycleViewmodelSavedstate" }
 androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended", version.ref = "materialIconsExtended" }
+smile-kotlin = { group = "com.github.haifengl", name = "smile-kotlin", version.ref = "smileKotlin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
