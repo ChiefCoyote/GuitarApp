@@ -11,20 +11,36 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -32,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview as camPreview
+import androidx.compose.ui.graphics.Color as graphColor
 
 @Composable
 fun CameraScreen(
@@ -133,71 +150,99 @@ private fun CameraContent(viewModel: CameraViewModel) {
     Scaffold(
         modifier = Modifier.fillMaxSize()
     ) { paddingValues: PaddingValues ->
-        AndroidView(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues),
-            factory = { previewView }
-        )
-
-        Canvas(modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
+                .padding(paddingValues)
         ) {
-            when(handTrackingResult){
-                is Result.Success -> {
-                    val data = (handTrackingResult as Result.Success).resultBundle
-                    val imageWidth = data.inputImageWidth
-                    val imageHeight = data.inputImageHeight
-                    val widthScaleFactor = (width * 1f) / imageWidth
-                    val heightScaleFactor = (height * 1f) / imageHeight
-                    val blackbarSize = (width - ((height / 3) * 4)) / 2
-                    val landMarkData =data.results.first()
-                    for (landmark in landMarkData.landmarks()){
-                        for (normalisedLandmark in landmark) {
-                            drawCircle(
-                                color = androidx.compose.ui.graphics.Color.Red,
-                                center = Offset((normalisedLandmark.x() * (width - blackbarSize - blackbarSize)) + blackbarSize,normalisedLandmark.y() * imageHeight * heightScaleFactor),
-                                radius = 10f
-                            )
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                factory = { previewView }
+            )
+
+            Column (
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .width(Dp(((width - ((height / 3) * 4))).toFloat()))
+            ){
+                val blackbarSize = (width - ((height / 3) * 4)) / 2
+                Row(
+                    modifier = Modifier
+                        .padding(paddingValues)
+                ){
+
+                    Spacer(modifier = Modifier.width(Dp(10.0f)))
+                    Button(onClick = { switch() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Camera")
+                    }
+                    Spacer(modifier = Modifier.width(Dp(8.0f)))
+                    Button(onClick = { switch() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Camera")
+                    }
+                }
+                Spacer(modifier = Modifier.height(Dp(8.0f)))
+                Row(
+                    modifier = Modifier
+                        .padding(paddingValues)
+                ){
+                    Spacer(modifier = Modifier.width(Dp(10.0f)))
+                    Text(
+                        text = "Select Chord",
+                        style = TextStyle(color = graphColor(255f, 255f, 255f, 1f)),
+                        fontSize = 24.sp
+                    )
+                }
+
+            }
+
+
+
+            Canvas(modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+            ) {
+                when(handTrackingResult){
+                    is Result.Success -> {
+                        val data = (handTrackingResult as Result.Success).resultBundle
+                        val imageWidth = data.inputImageWidth
+                        val imageHeight = data.inputImageHeight
+                        val widthScaleFactor = (width * 1f) / imageWidth
+                        val heightScaleFactor = (height * 1f) / imageHeight
+                        val blackbarSize = (width - ((height / 3) * 4)) / 2
+                        val landMarkData =data.results.first()
+                        for (landmark in landMarkData.landmarks()){
+                            for (normalisedLandmark in landmark) {
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Red,
+                                    center = Offset((normalisedLandmark.x() * (width - blackbarSize - blackbarSize)) + blackbarSize,normalisedLandmark.y() * imageHeight * heightScaleFactor),
+                                    radius = 10f
+                                )
+                            }
                         }
+
+
                     }
 
-                    drawCircle(
-                        color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(0f + blackbarSize,0f),
-                        radius = 50f
-                    )
-                    drawCircle(
-                        color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(2340f - blackbarSize,0f),
-                        radius = 50f
-                    )
-                    drawCircle(
-                        color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(0f + blackbarSize,1080f),
-                        radius = 50f
-                    )
-                    drawCircle(
-                        color = androidx.compose.ui.graphics.Color.Blue,
-                        center = Offset(2340f - blackbarSize,1080f),
-                        radius = 50f
-                    )
-                }
+                    is Result.Loading -> {
+                        println("Loading")
+                    }
 
-                is Result.Loading -> {
-                    println("Loading")
-                }
-
-                is Result.Error -> {
-                    println("Error")
+                    is Result.Error -> {
+                        println("Error")
+                    }
                 }
             }
         }
+
     }
 
 }
 
+private fun switch() {
+    println("click")
+}
 
 @Preview
 @Composable
