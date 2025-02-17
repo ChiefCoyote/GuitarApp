@@ -6,14 +6,22 @@ import android.view.WindowInsetsController
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.guitarapp.ui.MainScreen
+import com.example.guitarapp.ui.features.camera.hand_tracking.OverlayModelFactory
+import com.example.guitarapp.ui.features.camera.hand_tracking.OverlayViewModel
+import com.example.guitarapp.ui.features.camera.hand_tracking.TabApplication
 import com.example.guitarapp.ui.theme.GuitarAppTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val overlayViewModel: OverlayViewModel by viewModels{
+        OverlayModelFactory((application as TabApplication).repository)
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
 
         enableEdgeToEdge()
@@ -34,7 +42,8 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    println("wowza")
+                    MainScreen(overlayViewModel = overlayViewModel)
                 }
             }
         }

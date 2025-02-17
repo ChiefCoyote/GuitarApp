@@ -52,15 +52,16 @@ import androidx.compose.ui.graphics.Color as graphColor
 
 @Composable
 fun CameraScreen(
-    viewModel: CameraViewModel = viewModel(),
-) {
-    CameraContent(viewModel)
-}
+    cameraViewModel: CameraViewModel = viewModel()
 
+) {
+    CameraContent(cameraViewModel)
+}
+//
 @Composable
-private fun CameraContent(viewModel: CameraViewModel) {
-    val cameraState : CameraState by viewModel.state.collectAsStateWithLifecycle()
-    val handTrackingResult by viewModel.handTrackingResult.collectAsStateWithLifecycle()
+private fun CameraContent(cameraViewModel: CameraViewModel) {
+    val cameraState : CameraState by cameraViewModel.state.collectAsStateWithLifecycle()
+    val handTrackingResult by cameraViewModel.handTrackingResult.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current.density
     val screenWidth = configuration.screenWidthDp * density
@@ -88,7 +89,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
     var cameraSelector: CameraSelector
 
 
-    viewModel.startHandTracking(context, backgroundExecutor)
+    cameraViewModel.startHandTracking(context, backgroundExecutor)
 
     val previewView = remember {
         PreviewView(context).apply {
@@ -121,7 +122,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
             .build()
 
         imageAnalysis.setAnalyzer(backgroundExecutor) { imageProxy ->
-            viewModel.detectHand(imageProxy)
+            cameraViewModel.detectHand(imageProxy)
         }
 
 
@@ -242,6 +243,7 @@ private fun CameraContent(viewModel: CameraViewModel) {
 
 private fun switch() {
     println("click")
+
 }
 
 @Preview
