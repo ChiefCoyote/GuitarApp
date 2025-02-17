@@ -60,6 +60,8 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.room.common)
     implementation(libs.androidx.room.ktx)
+    implementation(libs.androidx.room.runtime)
+    ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -87,14 +89,6 @@ dependencies {
     //ACCOMPANIST//
     implementation(libs.accompanist.permissions)
 
-    //KOIN BASE//
-    implementation(libs.koin.core)
-    implementation(libs.koin.android)
-    implementation(libs.koin.androidx.compose)
-
-    //KOIN KSP//
-    implementation(libs.koin.annotations)
-    ksp(libs.koin.ksp.compiler)
 
     //HAND TRACKING//
     implementation(libs.tasks.vision)

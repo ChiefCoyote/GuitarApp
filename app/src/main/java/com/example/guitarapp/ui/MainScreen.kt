@@ -5,7 +5,6 @@ package com.example.guitarapp.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.guitarapp.ui.features.camera.hand_tracking.CameraScreen
-import com.example.guitarapp.ui.features.camera.hand_tracking.OverlayViewModel
 import com.example.guitarapp.ui.features.camera.no_permission.NoPermissionScreen
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
@@ -13,7 +12,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 
 @Composable
-fun MainScreen(overlayViewModel: OverlayViewModel) {
+fun MainScreen() {
 
     val cameraPermissionState: PermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 

@@ -29,12 +29,31 @@ class OverlayViewModel(private val repository: TabRepository) : ViewModel() {
         repository.insertTabString(newTabString)
     }
 
+    fun deleteTab() = viewModelScope.launch {
+        val list = tabStrings.value.orEmpty()
+        if (list.isNotEmpty() && currentIndex > 1) {
+            repository.deleteTab(list[currentIndex])
+        }
+    }
+
     fun nextTab() {
         val list = tabStrings.value.orEmpty()
         if (list.isEmpty()) return
 
-        currentIndex = (currentIndex + 1) % list.size
+        currentIndex = Math.floorMod(currentIndex + 1, list.size)
         _overlayTab.value = list[currentIndex]
+        println(currentIndex)
+        println(_overlayTab.value.name + _overlayTab.value.content)
+    }
+
+    fun previousTab() {
+        val list = tabStrings.value.orEmpty()
+        if (list.isEmpty()) return
+
+        currentIndex = Math.floorMod(currentIndex - 1, list.size)
+        _overlayTab.value = list[currentIndex]
+        println(currentIndex)
+        println(_overlayTab.value.name + _overlayTab.value.content)
     }
 
 

@@ -42,8 +42,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    println("wowza")
-                    MainScreen(overlayViewModel = overlayViewModel)
+                    MainScreen()
                 }
             }
         }

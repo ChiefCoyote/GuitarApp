@@ -1,9 +1,16 @@
 package com.example.guitarapp.ui.features.camera.hand_tracking
 
+import android.content.Context
 import android.graphics.Color
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.util.Log
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
@@ -23,6 +30,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -30,7 +39,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -46,6 +57,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview as camPreview
 import androidx.compose.ui.graphics.Color as graphColor
@@ -54,12 +67,16 @@ import androidx.compose.ui.graphics.Color as graphColor
 fun CameraScreen(
     cameraViewModel: CameraViewModel = viewModel()
 
+
 ) {
-    CameraContent(cameraViewModel)
+    val overlayViewModel: OverlayViewModel = viewModel(factory = OverlayModelFactory((LocalContext.current.applicationContext as TabApplication).repository))
+    // Use overlayViewModel as needed
+    CameraContent(cameraViewModel, overlayViewModel)
+
 }
 //
 @Composable
-private fun CameraContent(cameraViewModel: CameraViewModel) {
+private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: OverlayViewModel) {
     val cameraState : CameraState by cameraViewModel.state.collectAsStateWithLifecycle()
     val handTrackingResult by cameraViewModel.handTrackingResult.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
@@ -82,6 +99,9 @@ private fun CameraContent(cameraViewModel: CameraViewModel) {
 
     val width = bounds?.width() ?: 0
     val height = bounds?.height() ?: 0
+
+    var fileName by remember { mutableStateOf("No file selected") }
+    var fileContent by remember { mutableStateOf("") }
 
     var cameraProvider: ProcessCameraProvider
     var preview: camPreview
@@ -148,6 +168,22 @@ private fun CameraContent(cameraViewModel: CameraViewModel) {
     }, ContextCompat.getMainExecutor(context))
 
 
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            fileName = getFileName(context, it)
+            fileContent = readTextFromUri(context, it)
+            val content = verifyContent(content = fileContent)
+            if (content != null ){
+                overlayViewModel.addtabString(TabString(name = content.first, content = content.second))
+                Toast.makeText(context, content.first + " was uploaded", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "File format is not correct", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize()
     ) { paddingValues: PaddingValues ->
@@ -163,40 +199,64 @@ private fun CameraContent(cameraViewModel: CameraViewModel) {
                 factory = { previewView }
             )
 
-            Column (
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .width(Dp(((width - ((height / 3) * 4))).toFloat()))
+                    .fillMaxSize()
             ){
                 val blackbarSize = (width - ((height / 3) * 4)) / 2
-                Row(
+                Column (
                     modifier = Modifier
-                        .padding(paddingValues)
+                        .align(Alignment.TopCenter)
+                        .width(Dp(((width - ((height / 3) * 4))).toFloat()))
                 ){
+                    Row(
+                        modifier = Modifier
+                            .padding(paddingValues)
+                    ){
 
-                    Spacer(modifier = Modifier.width(Dp(10.0f)))
-                    Button(onClick = { switch() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Camera")
+                        Spacer(modifier = Modifier.width(Dp(10.0f)))
+                        Button(onClick = { overlayViewModel.previousTab() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Camera")
+                        }
+                        Spacer(modifier = Modifier.width(Dp(8.0f)))
+                        Button(onClick = { overlayViewModel.nextTab() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
+                            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Camera")
+                        }
                     }
-                    Spacer(modifier = Modifier.width(Dp(8.0f)))
-                    Button(onClick = { switch() }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Camera")
+                    Spacer(modifier = Modifier.height(Dp(8.0f)))
+                    Row(
+                        modifier = Modifier
+                            .padding(paddingValues)
+                    ){
+                        Spacer(modifier = Modifier.width(Dp(12.0f)))
+                        Text(
+                            text = "Select Chord",
+                            style = TextStyle(color = graphColor(255f, 255f, 255f, 1f)),
+                            fontSize = 24.sp
+                        )
                     }
+
                 }
-                Spacer(modifier = Modifier.height(Dp(8.0f)))
+
                 Row(
                     modifier = Modifier
                         .padding(paddingValues)
+                        .align(Alignment.BottomStart)
                 ){
                     Spacer(modifier = Modifier.width(Dp(10.0f)))
-                    Text(
-                        text = "Select Chord",
-                        style = TextStyle(color = graphColor(255f, 255f, 255f, 1f)),
-                        fontSize = 24.sp
-                    )
+                    Button(onClick = {
+                        filePickerLauncher.launch("text/plain")
+                    }, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))){
+                        Icon(imageVector = Icons.Filled.Upload, contentDescription = "Upload")
+                    }
+                    Spacer(modifier = Modifier.width(Dp(10.0f)))
+                    Button(onClick = {overlayViewModel.deleteTab()}, modifier = Modifier.width(Dp((blackbarSize / 7).toFloat()))) {
+                        Icon(imageVector = Icons.Filled.Delete, contentDescription = "Delete")
+                    }
                 }
 
             }
+
 
 
 
@@ -241,6 +301,80 @@ private fun CameraContent(cameraViewModel: CameraViewModel) {
 
 }
 
+fun getFileName(context: Context, uri: Uri): String {
+    var name = "Unknown"
+    val cursor = context.contentResolver.query(uri, null, null, null, null)
+    cursor?.use {
+        if (it.moveToFirst()) {
+            val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1) {
+                name = it.getString(nameIndex)
+            }
+        }
+    }
+    return name
+}
+
+fun readTextFromUri(context: Context, uri: Uri): String {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BufferedReader(InputStreamReader(inputStream)).readText()
+        } ?: "Error reading file"
+    } catch (e: Exception) {
+        Log.e("FilePicker", "Error reading file", e)
+        "Error reading file"
+    }
+}
+
+private fun verifyContent(content: String) : Pair<String,String>? {
+    val parts = content.split("|")
+
+    if (parts.size!=2) return null
+
+    val nameSection = parts[0]
+    val tabSection = parts[1]
+    val tabs = tabSection.split(",")
+
+    val nameRegex = "^[A-Za-z0-9 ]{1,14}$".toRegex()
+
+    if (!nameRegex.matches(nameSection)) return null
+
+    if (tabs.size!=6) return null
+    val seenFingers = booleanArrayOf(false,false,false,false,false)
+    for (tab in tabs){
+        val fingerFretPairs = tab.split("-")
+
+        if (fingerFretPairs.size != 2) return null
+
+        val finger = fingerFretPairs[0]
+        val fret = fingerFretPairs[1]
+
+        val completeFingerRegex = "^[1-5_]$".toRegex()
+        val completeFretRegex = "^(?:x|[0-9]|1\\d|20)\$".toRegex()
+        if (!(completeFingerRegex.matches(finger) && completeFretRegex.matches(fret))) return null
+
+        if (finger == "_" && !(fret == "x" || fret == "0")) return null
+
+        val fingerRegex = "^[1-5]$".toRegex()
+        val fretRegex = "^[1-20]$".toRegex()
+
+        if(fingerRegex.matches(finger)){
+            if (fret =="x" || fret == "0"){
+                return null
+            }
+            if (seenFingers[finger.toInt() - 1]){
+                return null
+            } else {
+                seenFingers[finger.toInt() - 1] = true
+            }
+        }
+    }
+
+    println("9")
+    return Pair(nameSection, tabSection)
+}
+
+
 private fun switch() {
     println("click")
 
@@ -249,5 +383,5 @@ private fun switch() {
 @Preview
 @Composable
 private fun Preview_CameraContent() {
-    CameraContent(viewModel())
+    CameraContent(viewModel(), viewModel())
 }

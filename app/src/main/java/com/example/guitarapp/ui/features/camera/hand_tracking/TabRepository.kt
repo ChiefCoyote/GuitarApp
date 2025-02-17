@@ -10,4 +10,9 @@ class TabRepository(private val tabDao: TabDao) {
     suspend fun insertTabString(tabString: TabString){
         tabDao.insertTabString(tabString)
     }
+
+    @WorkerThread
+    suspend fun deleteTab(tabString: TabString) {
+        tabDao.deleteTab(tabString)
+    }
 }
