@@ -255,7 +255,20 @@ class HandLandmarkerHelper (
 
         //return finalBitmap
 
-        return extrapolatedStrings
+
+        return normalizeCoords(extrapolatedStrings, mat)
+    }
+
+    private fun normalizeCoords(lines: MutableList<Pair<Point,Point>>, mat: Mat) : List<Pair<Point,Point>> {
+        val width = mat.cols().toDouble()
+        val height = mat.rows().toDouble()
+
+        return lines.map { (p1, p2) ->
+            Pair(
+                Point(p1.x / width, p1.y / height),
+                Point(p2.x / width, p2.y / height)
+            )
+        }
     }
 
     /*private fun oldGuitarLandmarks(input: MPImage): Bitmap {

@@ -425,6 +425,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 when(handTrackingResult){
                     is Result.Success -> {
                         val data = (handTrackingResult as Result.Success).resultBundle
+                        val stringLocations = data.guitar
                         val imageWidth = data.inputImageWidth
                         val imageHeight = data.inputImageHeight
                         val widthScaleFactor = (width * 1f) / imageWidth
@@ -439,6 +440,15 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                     radius = 10f
                                 )
                             }
+                        }
+
+                        for (string in stringLocations){
+                            drawLine(
+                                color = androidx.compose.ui.graphics.Color.Green,
+                                start = Offset(((string.first.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.first.y.toFloat() * imageHeight * heightScaleFactor),
+                                end = Offset(((string.second.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.second.y.toFloat() * imageHeight * heightScaleFactor),
+                                strokeWidth = 5f
+                            )
                         }
 
 
