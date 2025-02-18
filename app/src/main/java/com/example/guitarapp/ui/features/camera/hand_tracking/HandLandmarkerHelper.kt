@@ -15,6 +15,7 @@
  */
 package com.example.guitarapp.ui.features.camera.hand_tracking
 
+//import smile.clustering.kmeans
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -24,6 +25,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.camera.core.ImageProxy
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.google.mediapipe.framework.image.BitmapExtractor
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -31,6 +33,17 @@ import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
+import org.opencv.android.Utils
+import org.opencv.core.CvType
+import org.opencv.core.Mat
+import org.opencv.core.Point
+import org.opencv.core.Scalar
+import org.opencv.core.Size
+import org.opencv.imgproc.CLAHE
+import org.opencv.imgproc.Imgproc
+import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.round
 
 class HandLandmarkerHelper (
     var runningMode: RunningMode = RunningMode.LIVE_STREAM,
@@ -190,9 +203,12 @@ class HandLandmarkerHelper (
         val finishTimeMs = SystemClock.uptimeMillis()
         val inferenceTime = finishTimeMs - result.timestampMs()
 
+        val guitarLandmarks = guitarLandmarks(input)
+
         handLandmarkerHelperListener?.onResults(
             ResultBundle(
                 listOf(result),
+                guitarLandmarks,
                 inferenceTime,
                 input.height,
                 input.width
@@ -206,6 +222,661 @@ class HandLandmarkerHelper (
         handLandmarkerHelperListener?.onError(
             error.message ?: "An unknown error has occurred"
         )
+    }
+
+    private fun guitarLandmarks(input: MPImage): List<Pair<Point,Point>> {
+        val image = BitmapExtractor.extract(input)
+        val mat = Mat(image.height, image.width, CvType.CV_8UC4)
+        Utils.bitmapToMat(image, mat)
+
+        val transformedMat = applyTransforms(mat)
+
+        val lines = Mat()
+        var colorMat = Mat()
+
+        Imgproc.HoughLinesP(transformedMat, lines, 1.0, Math.PI / 180, 100, 75.0, 20.0)
+        Imgproc.cvtColor(transformedMat, colorMat, Imgproc.COLOR_GRAY2BGR)
+
+        val strongLines = strongLines(lines)
+
+        val combinedLines = combineLines(strongLines)
+
+        val extendedLines = extendLines(combinedLines)
+
+        val singleLines = removeDuplicateLines(extendedLines)
+
+        val extrapolatedStrings = extrapolateStrings3(singleLines)
+
+        //colorMat = drawLines(extrapolatedStrings, colorMat)
+
+        //val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
+        //Utils.matToBitmap(colorMat, finalBitmap)
+
+
+        //return finalBitmap
+
+        return extrapolatedStrings
+    }
+
+    /*private fun oldGuitarLandmarks(input: MPImage): Bitmap {
+        val image = BitmapExtractor.extract(input)
+        //println(image)
+        val mat = Mat(image.height, image.width, CvType.CV_8UC4)
+        Utils.bitmapToMat(image, mat)
+        //println(mat)
+
+
+        val grayMat = Mat()
+        val edgesMat = Mat()
+        val lines = Mat()
+        val colorMat = Mat()
+
+        Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY)
+
+        Imgproc.GaussianBlur(grayMat, grayMat, Size(5.0, 5.0), 1.6)
+
+        val clahe: CLAHE = Imgproc.createCLAHE(0.75, Size(16.0, 16.0))
+        clahe.apply(grayMat, grayMat)
+
+        Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
+
+        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        Imgproc.dilate(edgesMat, edgesMat, kernel)
+
+        Imgproc.HoughLinesP(edgesMat, lines, 1.0, Math.PI / 180, 100, 25.0, 10.0)
+
+
+        Imgproc.cvtColor(edgesMat, colorMat, Imgproc.COLOR_GRAY2BGR)
+
+        val verticalLines = mutableListOf<Pair<Point, Point>>()
+        val horizontalLines = mutableListOf<Pair<Point, Point>>()
+
+        val gradientGroups = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+
+        for(i in 0 until lines.rows()){
+            val line = lines.get(i, 0)
+            //println(line)
+            var x1 = line[0].toDouble()
+            //println(x1)
+            var y1 = line[1].toDouble()
+            //println(y1)
+            var x2 = line[2].toDouble()
+            //println(x2)
+            var y2 = line[3].toDouble()
+
+            if (x1 > x2){
+                x1 = x2.also { x2 = x1 }
+                y1 = y2.also { y2 = y1 }
+            }
+
+
+            val slope = if (x2 - x1 == 0.0) Double.POSITIVE_INFINITY else (y2 - y1) / (x2 - x1)
+
+            if (abs(slope) > 0.75) { // High slope -> Vertical
+                verticalLines.add(Point(x1, y1) to Point(x2, y2))
+            } else { // Low slope -> Horizontal
+                horizontalLines.add(Point(x1, y1) to Point(x2, y2))
+                val roundedGradient = "%.1f".format(slope).toDouble()
+                //val roundedGradient = round(slope)
+                gradientGroups.computeIfAbsent(roundedGradient) { mutableListOf() }.add(Point(x1, y1) to Point(x2, y2))
+            }
+        }
+
+
+
+
+        val largestList = gradientGroups.maxByOrNull { it.value.size }?.key
+
+        var stringList = gradientGroups[largestList]
+        var gradient = 0.0
+
+        val lineLengths = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+
+        val lineGroups = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+        val intercepts = mutableSetOf<Double>()
+
+        //Determine the y intercept of each line
+        if (stringList != null) {
+            for(line in stringList){
+                if(largestList != null){
+                    gradient = if (line.second.x - line.first.x == 0.0) Double.POSITIVE_INFINITY else (line.second.y - line.first.y) / (line.second.x - line.first.x)
+                    var intercept = 0.0
+                    if(line.first.x == 0.0 || gradient == 0.0){
+                        intercept = line.first.y
+                    } else{
+                        intercept = line.first.y / (gradient * line.first.x)
+                    }
+                    if(intercept > 10000.0){
+                        println("wow")
+                        println(gradient)
+                        println(line.first.x)
+                        println(line.first.y)
+                    }
+                    intercepts.add(round(intercept / 10) * 10)
+                    lineGroups.computeIfAbsent(round(intercept / 10) * 10) { mutableListOf() }.add(line)
+                    Imgproc.line(colorMat, line.first, line.second, Scalar(255.0, 0.0, 0.0), 2)
+                }
+
+                val length = sqrt((line.second.x - line.first.y).pow(2) + (line.second.y - line.first.y).pow(2))
+                lineLengths.computeIfAbsent(length) { mutableListOf() }.add(line)
+            }
+        }
+
+        stringList?.sortBy { it.first.x }
+
+        println("stringlist")
+        if (stringList != null) {
+            println(stringList.size)
+        }
+
+        val combinedLines = mutableMapOf<Point, Point>()
+        var successfullyCombine = true
+
+        while (successfullyCombine) {
+            combinedLines.clear()
+            successfullyCombine = false
+            if (stringList != null) {
+                for(line in stringList) {
+                    val closePair = combinedLines.entries.find { pointDistance(it.key, line.first) < 15}
+
+                    if(closePair != null){
+                        val startPoint = closePair.value
+                        combinedLines.remove(closePair.key)
+
+                        combinedLines[line.second] = startPoint
+
+                        successfullyCombine = true
+                    } else {
+                        combinedLines[line.second] = line.first
+                    }
+                }
+
+                stringList = combinedLines.map {(key, value) -> Pair(value, key)}.toMutableList()
+
+            }
+
+        }
+
+
+
+
+
+        var counteed = 0
+
+        val longLines = mutableListOf<Pair<Double, Pair<Point, Point>>>()
+        if (stringList != null) {
+            for(line in stringList) {
+                val length = hypot(line.second.x - line.first.x, line.second.y - line.first.y)
+                longLines.add(Pair(length, line))
+            }
+        }
+        longLines.sortByDescending { it.first }
+
+
+        val combinedIntercpet = mutableMapOf<Double, Pair<Point, Point>>()
+
+
+
+
+        for(line in longLines) {
+            val gradx = if (line.second.second.x - line.second.first.x == 0.0) Double.POSITIVE_INFINITY else (line.second.second.y - line.second.first.y) / (line.second.second.x - line.second.first.x)
+            var intercept = 0.0
+            if(line.second.first.x == 0.0 || gradx == 0.0){
+                intercept = line.second.first.y
+            } else{
+                intercept = line.second.first.y / (gradx * line.second.first.x)
+            }
+
+            val closeIntercept = combinedIntercpet.entries.find { abs(it.key - intercept) < 15 && overlapX(it.value, line.second)}
+            var point1 = Point(0.0, 0.0)
+            var point2 = Point(0.0, 0.0)
+            var key = 0.0
+            if(closeIntercept != null) {
+                if (closeIntercept.value.first.x < line.second.first.x){
+                    point1 = closeIntercept.value.first
+                } else {
+                    point1 = line.second.first
+                }
+                val x = if (closeIntercept.value.second.x > line.second.second.x) {
+                    closeIntercept.value.second.x
+                } else {
+                    line.second.second.x
+                }
+                val y = (x * gradx) + intercept
+
+                point2 = Point(x, y)
+
+                key = closeIntercept.key
+            } else {
+                key = intercept
+                point1 = line.second.first
+                point2 = line.second.second
+            }
+            combinedIntercpet[key] = Pair(point1, point2)
+        }
+
+
+
+        val strings = mutableListOf<Pair<Double, Pair<Point, Point>>>()
+
+        for(line in combinedIntercpet.values) {
+
+            if ("%.1f".format(lineGrad(line.first, line.second)).toDouble() == largestList){
+                counteed++
+                strings.add(Pair(pointDistance(line.first, line.second), Pair(line.first, line.second)))
+
+            }
+
+
+        }
+        strings.sortByDescending { it.first }
+        val clusterIntercepts = mutableListOf<Double>()
+
+        val possibleStrings = strings.take(15)
+
+        for (string in possibleStrings) {
+            clusterIntercepts.add(findIntercept(string.second.first, string.second.second))
+        }
+
+        val cluster = greatestCluster(clusterIntercepts)
+
+        val topString = topString(cluster)
+
+
+        for (guitarString in possibleStrings) {
+            if (topString.second == findIntercept(guitarString.second.first, guitarString.second.second)){
+                val startPoint = guitarString.second.first
+                val endPoint =guitarString.second.second
+                for (i in 0 until 6) {
+                    val stringStartPoint = Point(startPoint.x, startPoint.y + (i * topString.first))
+                    val stringEndPoint = Point(endPoint.x, endPoint.y + (i * topString.first))
+                    Imgproc.line(colorMat, stringStartPoint, stringEndPoint, Scalar(0.0, 0.0, 255.0), 2)
+                }
+            }
+
+            break
+
+        }
+
+        println("CombinedLines")
+        println(counteed)
+
+
+        val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
+        Utils.matToBitmap(colorMat, finalBitmap)
+
+        return finalBitmap
+    }*/
+
+    private fun extrapolateStrings3(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+        if(lines.size > 2) {
+            val extrapolatedLines = mutableListOf<Pair<Point,Point>>()
+            lines.sortBy { findIntercept(it.first, it.second) }
+
+
+            var averageLeftDistance = 0.0
+            var averageRightDistance = 0.0
+
+            for (i in 0 until lines.size - 1) {
+                averageLeftDistance += lines[i + 1].first.y - lines[i].first.y
+                averageRightDistance += lines[i + 1].second.y - lines[i].second.y
+            }
+
+            averageLeftDistance /= lines.size
+            averageRightDistance /= lines.size
+
+            averageLeftDistance *= 2
+            averageRightDistance *= 2
+
+            extrapolatedLines.add(lines.first())
+
+            for (i in 1 until 6) {
+                val lineAbove = extrapolatedLines[i - 1]
+                extrapolatedLines.add(
+                    Pair(
+                        Point(lineAbove.first.x, lineAbove.first.y + averageLeftDistance),
+                        Point(lineAbove.second.x, lineAbove.second.y + averageRightDistance)
+                    )
+                )
+            }
+
+            return extrapolatedLines
+        } else{
+            return mutableListOf()
+        }
+    }
+
+    private fun extrapolateStrings2(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+        if(lines.size > 2) {
+            lines.sortBy { findIntercept(it.first, it.second) }
+
+
+            var averageLeftDistance = 0.0
+            var averageRightDistance = 0.0
+
+            for (i in 0 until lines.size - 1) {
+                averageLeftDistance += lines[i + 1].first.y - lines[i].first.y
+                averageRightDistance += lines[i + 1].second.y - lines[i].second.y
+            }
+
+            averageLeftDistance /= lines.size
+            averageRightDistance /= lines.size
+
+            for (i in lines.size until 6) {
+                val lineAbove = lines[i - 1]
+                lines.add(
+                    Pair(
+                        Point(lineAbove.first.x, lineAbove.first.y + averageLeftDistance),
+                        Point(lineAbove.second.x, lineAbove.second.y + averageRightDistance)
+                    )
+                )
+            }
+
+            return lines
+        } else{
+            return mutableListOf()
+        }
+    }
+
+    private fun extrapolateStrings(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+        if (lines.size > 2){
+            val extrapolatedStrings = mutableListOf<Pair<Point,Point>>()
+            val stringHeights = mutableListOf<Double>()
+            for (line in lines){
+                val yintercept = round(findIntercept(line.first,line.second)/10) * 10
+                stringHeights.add(yintercept)
+            }
+
+            println(stringHeights)
+
+            stringHeights.sort()
+            var minDistance = Double.POSITIVE_INFINITY
+
+            for (i in 0 until stringHeights.size - 1){
+                //println(stringHeights[i+1])
+                //println(stringHeights[i])
+                val difference = stringHeights[i+1] - stringHeights[i]
+                if ((difference < minDistance) && (difference != 0.0)){
+                    minDistance = difference
+                }
+            }
+
+            //println(minDistance)
+            lines.sortBy { it.first.y }
+
+            val topString = lines.first()
+            val gradient = lineGrad(topString.first, topString.second)
+            val yIntercept = findIntercept(topString.first, topString.second)
+
+            for (i in 0 until 6){
+                val x1 = topString.first.x
+                val x2 = topString.second.x
+                val newIntercept = yIntercept + (minDistance * i)
+
+                val y1 = (x1 * gradient) + newIntercept
+                val y2 = (x2 * gradient) + newIntercept
+
+                //println(y1)
+                extrapolatedStrings.add(Pair(Point(x1,y1), Point(x2,y2)))
+            }
+            return extrapolatedStrings
+        } else {
+            return mutableListOf()
+        }
+
+
+
+    }
+
+    private fun extrapolateLine(line : Pair<Point,Point>, startX : Double, endX : Double) : Pair<Point,Point>{
+        val gradient = lineGrad(line.first, line.second)
+        val yIntercept = findIntercept(line.first, line.second)
+
+        val startPoint = Point(startX,(gradient * startX) + yIntercept)
+        val endPoint = Point(endX, (gradient * endX) + yIntercept)
+
+        return Pair(startPoint, endPoint)
+    }
+
+    private fun extendLines(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+        var leftMost = Double.POSITIVE_INFINITY
+        var rightMost = Double.NEGATIVE_INFINITY
+
+        val extendedLines = mutableListOf<Pair<Point,Point>>()
+
+        for (line in lines){
+            if(line.first.x < leftMost) leftMost=line.first.x
+            if(line.second.x > rightMost) rightMost=line.second.x
+        }
+
+        for (line in lines){
+            extendedLines.add(extrapolateLine(line, leftMost, rightMost))
+        }
+
+        return extendedLines
+    }
+
+    private fun removeDuplicateLines(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+
+        val yMap = mutableMapOf<Double, MutableList<Pair<Point,Point>>>()
+        val singleLines = mutableListOf<Pair<Point,Point>>()
+        for (line in lines){
+            val yintercept = round(findIntercept(line.first,line.second)/10) * 10
+            yMap.getOrPut(yintercept) { mutableListOf()}.add(line)
+        }
+        for ((_, segments) in yMap){
+            if(segments.size == 1){
+                singleLines.add(segments.first())
+            } else{
+                var leftMost = Point(Double.POSITIVE_INFINITY, 0.0)
+                var rightMost = Point(Double.NEGATIVE_INFINITY, 0.0)
+
+                for (segment in segments){
+                    if(segment.first.x < leftMost.x){
+                        leftMost = segment.first
+                    }
+                    if (segment.first.x > rightMost.x){
+                        rightMost = segment.first
+                    }
+                    if(segment.second.x < leftMost.x){
+                        leftMost = segment.second
+                    }
+                    if (segment.second.x > rightMost.x){
+                        rightMost = segment.second
+                    }
+                }
+
+                singleLines.add(Pair(leftMost, rightMost))
+            }
+        }
+
+
+
+        return lines
+    }
+
+    private fun combineLines(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+        val combinedLines = mutableListOf<Pair<Point, Point>>()
+
+        while (lines.isNotEmpty()){
+            var line = lines.removeAt(0)
+            val remove = mutableListOf<Pair<Point, Point>>()
+            for (connection in lines){
+                if (pointDistance(line.second, connection.first) < 10){
+                    line = Pair(line.first,connection.second)
+                    remove.add(connection)
+                }
+            }
+            for (connection in remove){
+                lines.remove(connection)
+            }
+
+            combinedLines.add(line)
+        }
+        return combinedLines
+    }
+
+    private fun strongLines(lines: Mat) : MutableList<Pair<Point,Point>> {
+        var cutoff = 6
+        val strongLines = mutableListOf<Pair<Point,Point>>()
+
+        for(i in 0 until lines.rows()){
+            val line = lines.get(i, 0)
+            //println(line)
+            var x1 = line[0].toDouble()
+            //println(x1)
+            var y1 = line[1].toDouble()
+            //println(y1)
+            var x2 = line[2].toDouble()
+            //println(x2)
+            var y2 = line[3].toDouble()
+
+            if (x1 > x2){
+                x1 = x2.also { x2 = x1 }
+                y1 = y2.also { y2 = y1 }
+            }
+
+            val gradient = abs(lineGrad(Point(x1,y1), Point(x2,y2)))
+            if (gradient < 1 && cutoff > 0) {
+                cutoff--
+                strongLines.add(Pair(Point(x1,y1), Point(x2,y2)))
+            }
+
+        }
+
+        return strongLines
+    }
+
+    private fun drawLines(lines: List<Pair<Point,Point>>, canvas: Mat) : Mat{
+        var counter = 0
+
+        val colors = listOf(
+            Scalar(255.0, 0.0, 0.0),   // Blue
+            Scalar(0.0, 255.0, 0.0),   // Green
+            Scalar(0.0, 0.0, 255.0),   // Red
+            Scalar(255.0, 255.0, 0.0), // Cyan
+            Scalar(255.0, 0.0, 255.0), // Magenta
+            Scalar(0.0, 255.0, 255.0) // Yellow
+        )
+
+        for(line in lines){
+            println("String " + counter.toString())
+            println(line.first)
+            println(line.second)
+            Imgproc.line(canvas, line.first, line.second, colors[counter], 1)
+            counter++
+        }
+        println(counter)
+        return canvas
+    }
+
+    private fun applyTransforms(mat: Mat): Mat{
+        val grayMat = Mat()
+        val edgesMat = Mat()
+
+
+        Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY)
+
+        Imgproc.GaussianBlur(grayMat, grayMat, Size(5.0, 5.0), 1.6)
+
+        val clahe: CLAHE = Imgproc.createCLAHE(0.75, Size(16.0, 16.0))
+        clahe.apply(grayMat, grayMat)
+
+        Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
+
+        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        Imgproc.dilate(edgesMat, edgesMat, kernel, Point(-1.0, -1.0), 3)
+
+        Imgproc.erode(edgesMat, edgesMat, kernel, Point(-1.0, -1.0), 4)
+
+        return edgesMat
+    }
+
+    private fun overlapX(line1: Pair<Point, Point>, line2: Pair<Point, Point>): Boolean {
+        return if (line2.first.x + 10 >= line1.first.x && line2.first.x - 10 <= line1.second.x){
+            true
+        } else if (line2.second.x + 10 >= line1.first.x && line2.second.x - 10 <= line1.second.x) {
+            true
+        } else if (line1.first.x + 10 >= line2.first.x && line1.first.x - 10 <= line2.second.x) {
+            true
+        } else if (line1.second.x + 10 >= line2.first.x && line1.second.x - 10 <= line2.second.x) {
+            true
+        } else{
+            false
+        }
+    }
+
+    private fun pointDistance(point1: Point, point2: Point): Double {
+        return hypot(point2.x - point1.x, point2.y - point1.y)
+    }
+
+    private fun lineGrad(point1: Point, point2: Point): Double {
+        return if (point2.x - point1.x == 0.0) Double.POSITIVE_INFINITY else (point2.y - point1.y) / (point2.x - point1.x)
+    }
+
+    private fun findIntercept(point1: Point, point2: Point): Double {
+        val gradient = lineGrad(point1, point2)
+        val intercept = if(point1.x == 0.0 || gradient == 0.0){
+            point1.y
+        } else{
+            point1.y - (gradient * point1.x)
+        }
+        return intercept
+    }
+
+    /*private fun greatestCluster(yValues: List<Double>): List<Double> {
+        if (yValues.isEmpty()) return emptyList()
+
+        val yArray = yValues.map { doubleArrayOf(it) }.toTypedArray()
+
+        val clusters = kmeans(yArray, 6)
+
+        val sortClusters = yValues.indices.groupBy { clusters.y[it] }.mapValues { (_, indices) -> indices.map { yValues[it] } }
+
+        println("clusters")
+        for ((cluster, points) in sortClusters) {
+            println(cluster)
+            println(points)
+        }
+
+        val biggestCluster = sortClusters.maxByOrNull { it.value.size }?.value
+
+        return if (biggestCluster.isNullOrEmpty()){
+            emptyList()
+        } else{
+            biggestCluster
+        }
+
+    }*/
+
+
+    private fun topString(yValues: List<Double>): Pair<Double, Double> {
+        val gaps = mutableListOf<Double>()
+        val sortedValues = yValues.sorted()
+        for (i in 0 until sortedValues.size - 1) {
+            for (j in (i + 1) until sortedValues.size) {
+                val gap = abs(sortedValues[i] - sortedValues[j])
+                if (gap > 5){
+                    gaps.add(gap)
+                }
+            }
+        }
+
+        gaps.sort()
+
+        val returnGap = if(gaps.size > 0){
+            gaps[0]
+        } else {
+            0.0
+        }
+
+        val returnYVvlaue = if(sortedValues.isNotEmpty()){
+            sortedValues[0]
+        } else {
+            0.0
+        }
+
+        return Pair(returnGap, returnYVvlaue)
     }
 
     override fun onResume(owner: LifecycleOwner) {
@@ -230,6 +901,7 @@ class HandLandmarkerHelper (
 
     data class ResultBundle(
         val results: List<HandLandmarkerResult>,
+        val guitar: List<Pair<Point,Point>>,
         val inferenceTime: Long,
         val inputImageHeight: Int,
         val inputImageWidth: Int,
