@@ -16,6 +16,7 @@ import com.example.guitarapp.ui.features.camera.hand_tracking.OverlayModelFactor
 import com.example.guitarapp.ui.features.camera.hand_tracking.OverlayViewModel
 import com.example.guitarapp.ui.features.camera.hand_tracking.TabApplication
 import com.example.guitarapp.ui.theme.GuitarAppTheme
+import org.opencv.android.OpenCVLoader
 
 class MainActivity : ComponentActivity() {
 
@@ -34,6 +35,10 @@ class MainActivity : ComponentActivity() {
             controller.hide(WindowInsets.Type.statusBars())
             controller.hide(WindowInsets.Type.systemBars())
             controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        if(OpenCVLoader.initLocal()) {
+            println("loaded")
         }
 
         setContent {
