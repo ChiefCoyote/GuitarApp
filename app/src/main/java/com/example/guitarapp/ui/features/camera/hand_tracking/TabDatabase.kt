@@ -30,8 +30,8 @@ abstract class TabDatabase : RoomDatabase() {
 
                             INSTANCE?.let { database ->
                                 CoroutineScope(Dispatchers.IO).launch {
-                                    database.tabDao().insertTabString(TabString(content = "5-3,4-3,_-0,_-0,2-2,3-3", name = "G Chord"))
-                                    database.tabDao().insertTabString(TabString(content = "_-0,2-1,_-0,3-2,4-3,_-x", name = "C Chord"))
+                                    database.tabDao().insertTabString(TabString(content = "4-3,3-3,_-0,_-0,1-2,2-3", name = "G Chord"))
+                                    database.tabDao().insertTabString(TabString(content = "_-0,1-1,_-0,2-2,3-3,_-x", name = "C Chord"))
                                 }
                             }
                         }

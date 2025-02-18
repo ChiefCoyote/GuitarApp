@@ -42,8 +42,6 @@ class OverlayViewModel(private val repository: TabRepository) : ViewModel() {
 
         currentIndex = Math.floorMod(currentIndex + 1, list.size)
         _overlayTab.value = list[currentIndex]
-        println(currentIndex)
-        println(_overlayTab.value.name + _overlayTab.value.content)
     }
 
     fun previousTab() {
@@ -52,8 +50,6 @@ class OverlayViewModel(private val repository: TabRepository) : ViewModel() {
 
         currentIndex = Math.floorMod(currentIndex - 1, list.size)
         _overlayTab.value = list[currentIndex]
-        println(currentIndex)
-        println(_overlayTab.value.name + _overlayTab.value.content)
     }
 
 

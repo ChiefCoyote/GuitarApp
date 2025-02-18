@@ -2,6 +2,7 @@ package com.example.guitarapp.ui.features.camera.hand_tracking
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Point
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Log
@@ -18,6 +19,7 @@ import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,12 +47,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -60,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import androidx.camera.core.Preview as camPreview
 import androidx.compose.ui.graphics.Color as graphColor
 
@@ -102,6 +110,8 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
 
     var fileName by remember { mutableStateOf("No file selected") }
     var fileContent by remember { mutableStateOf("") }
+
+    val overlayTab by overlayViewModel.overlayTab.collectAsStateWithLifecycle()
 
     var cameraProvider: ProcessCameraProvider
     var preview: camPreview
@@ -255,6 +265,31 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                     }
                 }
 
+                Row (
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .width(160.dp)
+                        .height(80.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.Bottom
+                ){
+                    Spacer(modifier = Modifier.height(Dp(30.0f)))
+                    Column(
+                        modifier = Modifier
+                            .padding(paddingValues)
+                    ){
+                        Text(
+                            text = overlayTab.name ?:"",
+                            style = TextStyle(color = graphColor(255f, 255f, 255f, 1f)),
+                            fontSize = 24.sp
+                        )
+                        Spacer(modifier = Modifier.width(Dp(12.0f)))
+
+                    }
+
+
+                }
+
             }
 
 
@@ -264,6 +299,129 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 .fillMaxSize()
                 .padding(paddingValues)
             ) {
+                val blackbarSize = (width - ((height / 3) * 4)) / 2
+
+                val start = width - blackbarSize
+                val end = width
+                val barWidth = blackbarSize
+                val barHeight = height
+                val chartWidth = (barWidth/20) * 14
+                val chartHeight = (height/2)
+                val chartPad = (barWidth/20) * 3
+                val chartStart = start + chartPad
+                val chartEnd = chartStart + chartWidth
+
+                val stringSpace = chartWidth / 5
+                val fretSpace = chartHeight / 5
+
+                val firstFretLocation = (height/3) - (fretSpace / 2)
+
+                val grid: Array<Array<Point>> = Array(7) {row ->
+                    Array(6) { col ->
+                        Point(firstFretLocation + (row * fretSpace), chartStart + (col * stringSpace))
+                    }
+                }
+
+                drawRect(
+                    color = androidx.compose.ui.graphics.Color.White,
+                    topLeft = Offset(chartStart - 2f, (height/3f) - 20),
+                    size = Size(chartWidth.toFloat() + 4, 20f)
+                )
+
+                drawRect(
+                    color = androidx.compose.ui.graphics.Color.White,
+                    topLeft = Offset(chartStart.toFloat(), (height/3f)),
+                    size = Size(chartWidth.toFloat(), chartHeight.toFloat()),
+                    style = Stroke(width=4f)
+                )
+
+                for (i in 0 until 5){
+                    drawLine(
+                        color = androidx.compose.ui.graphics.Color.White,
+                        start = Offset(chartStart.toFloat() + (i * stringSpace), (height/3f)),
+                        end = Offset(chartStart.toFloat() + (i * stringSpace), (height/3f) + chartHeight),
+                        strokeWidth = 4f
+                    )
+                }
+
+                for (i in 0 until 5){
+                    drawLine(
+                        color = androidx.compose.ui.graphics.Color.White,
+                        start = Offset(chartStart.toFloat(), (height/3f) + (i * fretSpace)),
+                        end = Offset(chartEnd.toFloat(), (height/3f) + (i * fretSpace)),
+                        strokeWidth = 5f
+                    )
+                }
+                /*for (row in grid) {
+                    for (col in row) {
+                        drawCircle(
+                            color = androidx.compose.ui.graphics.Color.White,
+                            center = Offset(col.y.toFloat(), col.x.toFloat()),
+                            radius = 20f
+                        )
+                    }
+                }*/
+                val content  = overlayTab.content
+                if(content != null){
+                    val notes = content.split(",")
+                    for (i in 0 until 6){
+                        val index = 5-i
+                        val split = notes[i].split("-")
+                        val finger = split[0]
+                        val fret = split[1]
+
+                        if (finger == "_"){
+                            if (fret == "0"){
+                                drawIntoCanvas { canvas ->
+                                    // Create and configure a Paint object
+                                    val paint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE
+                                        textSize = 48f  // Set your desired text size (in pixels)
+                                        isAntiAlias = true
+                                    }
+                                    // Draw text on the canvas at position (x, y)
+                                    val point = grid[0][index]
+                                    canvas.nativeCanvas.drawText("O", point.y.toFloat() - 15, point.x.toFloat(), paint)
+                                }
+                            } else if (fret == "x"){
+                                drawIntoCanvas { canvas ->
+                                    // Create and configure a Paint object
+                                    val paint = android.graphics.Paint().apply {
+                                        color = android.graphics.Color.WHITE
+                                        textSize = 48f  // Set your desired text size (in pixels)
+                                        isAntiAlias = true
+                                    }
+                                    // Draw text on the canvas at position (x, y)
+                                    val point = grid[0][index]
+                                    canvas.nativeCanvas.drawText("X", point.y.toFloat() - 15, point.x.toFloat(), paint)
+                                }
+                            }
+                        } else{
+
+                            val notePoint = grid[fret.toInt()][index]
+                            drawCircle(
+                                color = androidx.compose.ui.graphics.Color.White,
+                                center = Offset(notePoint.y.toFloat(), notePoint.x.toFloat()),
+                                radius = 20f
+                            )
+
+
+                            drawIntoCanvas { canvas ->
+                                // Create and configure a Paint object
+                                val paint = android.graphics.Paint().apply {
+                                    color = android.graphics.Color.WHITE
+                                    textSize = 48f  // Set your desired text size (in pixels)
+                                    isAntiAlias = true
+                                }
+                                // Draw text on the canvas at position (x, y)
+                                val point = grid[6][index]
+                                canvas.nativeCanvas.drawText(finger , point.y.toFloat() - 15, point.x.toFloat(), paint)
+                            }
+                        }
+                    }
+                }
+
+
                 when(handTrackingResult){
                     is Result.Success -> {
                         val data = (handTrackingResult as Result.Success).resultBundle
@@ -271,7 +429,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                         val imageHeight = data.inputImageHeight
                         val widthScaleFactor = (width * 1f) / imageWidth
                         val heightScaleFactor = (height * 1f) / imageHeight
-                        val blackbarSize = (width - ((height / 3) * 4)) / 2
+
                         val landMarkData =data.results.first()
                         for (landmark in landMarkData.landmarks()){
                             for (normalisedLandmark in landmark) {
@@ -294,6 +452,8 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                         println("Error")
                     }
                 }
+
+
             }
         }
 
@@ -341,6 +501,8 @@ private fun verifyContent(content: String) : Pair<String,String>? {
 
     if (tabs.size!=6) return null
     val seenFingers = booleanArrayOf(false,false,false,false,false)
+    var smallestFret = 20
+    var biggestFret = 1
     for (tab in tabs){
         val fingerFretPairs = tab.split("-")
 
@@ -368,17 +530,17 @@ private fun verifyContent(content: String) : Pair<String,String>? {
                 seenFingers[finger.toInt() - 1] = true
             }
         }
-    }
 
-    println("9")
+        if (fretRegex.matches(fret)){
+            if (fret.toInt() < smallestFret) smallestFret = fret.toInt()
+            if (fret.toInt() > biggestFret) biggestFret = fret.toInt()
+        }
+    }
+    if(((abs(biggestFret - smallestFret) > 5)) && seenFingers.contains(true)) return null
+
     return Pair(nameSection, tabSection)
 }
 
-
-private fun switch() {
-    println("click")
-
-}
 
 @Preview
 @Composable
