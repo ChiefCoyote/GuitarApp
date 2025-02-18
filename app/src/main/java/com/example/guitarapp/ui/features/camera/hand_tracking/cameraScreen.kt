@@ -364,6 +364,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 val content  = overlayTab.content
                 if(content != null){
                     val notes = content.split(",")
+                    val playedStringsList = mutableListOf<Int>()
                     for (i in 0 until 6){
                         val index = 5-i
                         val split = notes[i].split("-")
@@ -397,7 +398,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }
                         } else{
-
+                            playedStringsList.add(i)
                             val notePoint = grid[fret.toInt()][index]
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.White,
@@ -419,49 +420,58 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             }
                         }
                     }
-                }
 
+                    when(handTrackingResult){
+                        is Result.Success -> {
+                            val data = (handTrackingResult as Result.Success).resultBundle
+                            val stringLocations = data.guitar
+                            val imageWidth = data.inputImageWidth
+                            val imageHeight = data.inputImageHeight
+                            val widthScaleFactor = (width * 1f) / imageWidth
+                            val heightScaleFactor = (height * 1f) / imageHeight
 
-                when(handTrackingResult){
-                    is Result.Success -> {
-                        val data = (handTrackingResult as Result.Success).resultBundle
-                        val stringLocations = data.guitar
-                        val imageWidth = data.inputImageWidth
-                        val imageHeight = data.inputImageHeight
-                        val widthScaleFactor = (width * 1f) / imageWidth
-                        val heightScaleFactor = (height * 1f) / imageHeight
+                            val landmarkIndices = intArrayOf(4,8,12,16,20)
 
-                        val landMarkData =data.results.first()
-                        for (landmark in landMarkData.landmarks()){
-                            for (normalisedLandmark in landmark) {
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Red,
-                                    center = Offset((normalisedLandmark.x() * (width - blackbarSize - blackbarSize)) + blackbarSize,normalisedLandmark.y() * imageHeight * heightScaleFactor),
-                                    radius = 10f
-                                )
+                            val landMarkData =data.results.first()
+                            for (landmark in landMarkData.landmarks()){
+                                for (landmarkindex in landmarkIndices) {
+                                    drawCircle(
+                                        color = androidx.compose.ui.graphics.Color.Red,
+                                        center = Offset((landmark[landmarkindex].x() * (width - blackbarSize - blackbarSize)) + blackbarSize,landmark[landmarkindex].y() * imageHeight * heightScaleFactor),
+                                        radius = 20f
+                                    )
+                                }
                             }
+
+                            if(stringLocations.isNotEmpty()){
+                                for (playedString in playedStringsList){
+                                    val string = stringLocations[5- playedString]
+                                    drawLine(
+                                        color = androidx.compose.ui.graphics.Color.Green,
+                                        start = Offset(((string.first.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.first.y.toFloat() * imageHeight * heightScaleFactor),
+                                        end = Offset(((string.second.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.second.y.toFloat() * imageHeight * heightScaleFactor),
+                                        strokeWidth = 5f
+                                    )
+                                }
+                            }
+
+
+
                         }
 
-                        for (string in stringLocations){
-                            drawLine(
-                                color = androidx.compose.ui.graphics.Color.Green,
-                                start = Offset(((string.first.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.first.y.toFloat() * imageHeight * heightScaleFactor),
-                                end = Offset(((string.second.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.second.y.toFloat() * imageHeight * heightScaleFactor),
-                                strokeWidth = 5f
-                            )
+                        is Result.Loading -> {
+                            println("Loading")
                         }
 
-
+                        is Result.Error -> {
+                            println("Error")
+                        }
                     }
 
-                    is Result.Loading -> {
-                        println("Loading")
-                    }
-
-                    is Result.Error -> {
-                        println("Error")
-                    }
                 }
+
+
+
 
 
             }
