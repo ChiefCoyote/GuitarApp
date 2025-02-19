@@ -87,6 +87,7 @@ fun CameraScreen(
 private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: OverlayViewModel) {
     val cameraState : CameraState by cameraViewModel.state.collectAsStateWithLifecycle()
     val handTrackingResult by cameraViewModel.handTrackingResult.collectAsStateWithLifecycle()
+    val guitarTrackingResult by cameraViewModel.guitarTrackingResult.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current.density
     val screenWidth = configuration.screenWidthDp * density
@@ -365,6 +366,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 if(content != null){
                     val notes = content.split(",")
                     val playedStringsList = mutableListOf<Pair<Int,Int>>()
+                    val usedFingers = mutableListOf<Int>()
                     for (i in 0 until 6){
                         val index = 5-i
                         val split = notes[i].split("-")
@@ -398,6 +400,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }
                         } else{
+                            usedFingers.add(finger.toInt())
                             playedStringsList.add(Pair(i, fret.toInt()))
                             val notePoint = grid[fret.toInt()][index]
                             drawCircle(
@@ -424,13 +427,13 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                     when(handTrackingResult){
                         is Result.Success -> {
                             val data = (handTrackingResult as Result.Success).resultBundle
-                            val noteLocations = data.guitar
                             val imageWidth = data.inputImageWidth
                             val imageHeight = data.inputImageHeight
                             val widthScaleFactor = (width * 1f) / imageWidth
                             val heightScaleFactor = (height * 1f) / imageHeight
 
                             val landmarkIndices = intArrayOf(4,8,12,16,20)
+
 
                             val landMarkData =data.results.first()
                             for (landmark in landMarkData.landmarks()){
@@ -440,6 +443,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                         center = Offset((landmark[landmarkindex].x() * (width - blackbarSize - blackbarSize)) + blackbarSize,landmark[landmarkindex].y() * imageHeight * heightScaleFactor),
                                         radius = 20f
                                     )
+
                                 }
                             }
 
@@ -456,7 +460,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             }*/
 
                             for(playedString in playedStringsList){
-                                val coords = noteLocations[5 - playedString.first][playedString.second]
+                                val coords = guitarTrackingResult[5 - playedString.first][playedString.second]
                                 if (coords != null){
                                     drawCircle(
                                         color = androidx.compose.ui.graphics.Color.Green,
