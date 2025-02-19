@@ -34,15 +34,19 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
 import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerResult
 import org.opencv.android.Utils
+import org.opencv.core.Core
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.Point
+import org.opencv.core.Rect
 import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.imgproc.CLAHE
 import org.opencv.imgproc.Imgproc
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.round
 
 class HandLandmarkerHelper (
@@ -203,12 +207,12 @@ class HandLandmarkerHelper (
         val finishTimeMs = SystemClock.uptimeMillis()
         val inferenceTime = finishTimeMs - result.timestampMs()
 
-        val guitarLandmarks = guitarLandmarks(input)
+        val guitarLandmarkList = guitarLandmarks(input)
 
         handLandmarkerHelperListener?.onResults(
             ResultBundle(
                 listOf(result),
-                guitarLandmarks,
+                guitarLandmarkList,
                 inferenceTime,
                 input.height,
                 input.width
@@ -224,29 +228,48 @@ class HandLandmarkerHelper (
         )
     }
 
-    private fun guitarLandmarks(input: MPImage): List<Pair<Point,Point>> {
+    private fun guitarLandmarks(input: MPImage): List<List<Point?>> {
         val image = BitmapExtractor.extract(input)
         val mat = Mat(image.height, image.width, CvType.CV_8UC4)
         Utils.bitmapToMat(image, mat)
 
-        val transformedMat = applyTransforms(mat)
+        val transformedMats = applyTransforms(mat)
 
-        val lines = Mat()
+        val horizMat = transformedMats.first
+        val vertMat = transformedMats.second
+
         var colorMat = Mat()
+        val horizontalLines = Mat()
+        val verticalLines = Mat()
 
-        Imgproc.HoughLinesP(transformedMat, lines, 1.0, Math.PI / 180, 100, 75.0, 20.0)
-        Imgproc.cvtColor(transformedMat, colorMat, Imgproc.COLOR_GRAY2BGR)
 
-        val strongLines = strongLines(lines)
+        val lsd = Imgproc.createLineSegmentDetector()
+        lsd.detect(vertMat, verticalLines)
 
-        val combinedLines = combineLines(strongLines)
+        Imgproc.HoughLinesP(horizMat, horizontalLines, 1.0, Math.PI / 180, 100, 75.0, 20.0)
+        //Imgproc.HoughLinesP(vertMat, verticalLines, 1.0, Math.PI / 180, 100, 20.0, 20.0)
+        Imgproc.cvtColor(horizMat, colorMat, Imgproc.COLOR_GRAY2BGR)
 
-        val extendedLines = extendLines(combinedLines)
+        val strongHorizontal = strongLines(horizontalLines, 6,true)
+        val strongVertical = strongLines(verticalLines, 50,false)
+
+        val combinedHorizontal = combineLines(strongHorizontal, true)
+        val combinedVertical = combineLines(strongVertical, false)
+
+        val ridgedVertical = verticalRidge(combinedVertical)
+        val frets = selectFret(ridgedVertical)
+
+        val extrapolatedFrets = extrapolateFret4(frets)
+
+        val extendedLines = extendLines(combinedHorizontal)
 
         val singleLines = removeDuplicateLines(extendedLines)
 
         val extrapolatedStrings = extrapolateStrings3(singleLines)
 
+        //colorMat = drawLines(extrapolatedFrets, colorMat)
+        //colorMat = drawLines(extrapolatedFrets, colorMat)
+        //colorMat = drawLines(combinedHorizontal, colorMat)
         //colorMat = drawLines(extrapolatedStrings, colorMat)
 
         //val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
@@ -255,28 +278,59 @@ class HandLandmarkerHelper (
 
         //return finalBitmap
 
+        val combinedCoords = combineLocations(extrapolatedStrings, extrapolatedFrets)
 
-        return normalizeCoords(extrapolatedStrings, mat)
+        return normalizeCoords(combinedCoords, mat)
     }
 
-    private fun normalizeCoords(lines: MutableList<Pair<Point,Point>>, mat: Mat) : List<Pair<Point,Point>> {
+    private fun combineLocations(strings: MutableList<Pair<Point,Point>>, frets: MutableList<Pair<Point,Point>>) :  MutableList<MutableList<Point?>>{
+        val stringList = strings.take(6)
+        val fretList = frets.take(6)
+        val combinedCoords : MutableList<MutableList<Point?>> = MutableList(6) {MutableList(5) {null} }
+        if (stringList.size != 6 || fretList.size != 6) return combinedCoords
+
+
+
+        for(i in 0 until 5){
+            val x = fretList[0].first.x
+            combinedCoords[i][0] = Point(x, findYCoord(stringList[i], x))
+        }
+
+
+        for (i in 0 until 6){
+            for (j in 1 until 5){
+                val x = fretList[j].first.x + ((fretList[j + 1].first.x - fretList[j].first.x) / 2)
+                combinedCoords[i][j] = Point(x, findYCoord(stringList[i], x))
+            }
+        }
+
+        return combinedCoords
+    }
+
+    private fun findYCoord(line: Pair<Point,Point>, x: Double) : Double {
+        val gradient = lineGrad(line.first,line.second)
+        val intercept = findIntercept(line.first, line.second)
+
+        return ((gradient * x) + intercept)
+    }
+
+    private fun normalizeCoords(coords: MutableList<MutableList<Point?>>, mat: Mat) : List<List<Point?>> {
         val width = mat.cols().toDouble()
         val height = mat.rows().toDouble()
 
-        return lines.map { (p1, p2) ->
-            Pair(
-                Point(p1.x / width, p1.y / height),
-                Point(p2.x / width, p2.y / height)
-            )
+        return coords.map { list ->
+            list.map {point ->
+                point?.let {Point(it.x / width, it.y/height)}
+            }
         }
     }
 
+
     /*private fun oldGuitarLandmarks(input: MPImage): Bitmap {
         val image = BitmapExtractor.extract(input)
-        //println(image)
+
         val mat = Mat(image.height, image.width, CvType.CV_8UC4)
         Utils.bitmapToMat(image, mat)
-        //println(mat)
 
 
         val grayMat = Mat()
@@ -308,13 +362,13 @@ class HandLandmarkerHelper (
 
         for(i in 0 until lines.rows()){
             val line = lines.get(i, 0)
-            //println(line)
+
             var x1 = line[0].toDouble()
-            //println(x1)
+
             var y1 = line[1].toDouble()
-            //println(y1)
+
             var x2 = line[2].toDouble()
-            //println(x2)
+
             var y2 = line[3].toDouble()
 
             if (x1 > x2){
@@ -360,10 +414,8 @@ class HandLandmarkerHelper (
                         intercept = line.first.y / (gradient * line.first.x)
                     }
                     if(intercept > 10000.0){
-                        println("wow")
-                        println(gradient)
-                        println(line.first.x)
-                        println(line.first.y)
+
+
                     }
                     intercepts.add(round(intercept / 10) * 10)
                     lineGroups.computeIfAbsent(round(intercept / 10) * 10) { mutableListOf() }.add(line)
@@ -377,10 +429,8 @@ class HandLandmarkerHelper (
 
         stringList?.sortBy { it.first.x }
 
-        println("stringlist")
-        if (stringList != null) {
-            println(stringList.size)
-        }
+
+
 
         val combinedLines = mutableMapOf<Point, Point>()
         var successfullyCombine = true
@@ -511,8 +561,7 @@ class HandLandmarkerHelper (
 
         }
 
-        println("CombinedLines")
-        println(counteed)
+
 
 
         val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
@@ -603,7 +652,7 @@ class HandLandmarkerHelper (
                 stringHeights.add(yintercept)
             }
 
-            println(stringHeights)
+            //println(stringHeights)
 
             stringHeights.sort()
             var minDistance = Double.POSITIVE_INFINITY
@@ -711,14 +760,20 @@ class HandLandmarkerHelper (
         return singleLines
     }
 
-    private fun combineLines(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
+    private fun combineLines(lines: MutableList<Pair<Point,Point>>, horizontal: Boolean) : MutableList<Pair<Point,Point>> {
         val combinedLines = mutableListOf<Pair<Point, Point>>()
+        val threshold: Int
+        if(horizontal){
+            threshold = 10
+        } else{
+            threshold = 8
+        }
 
         while (lines.isNotEmpty()){
             var line = lines.removeAt(0)
             val remove = mutableListOf<Pair<Point, Point>>()
             for (connection in lines){
-                if (pointDistance(line.second, connection.first) < 10){
+                if (pointDistance(line.second, connection.first) < threshold){
                     line = Pair(line.first,connection.second)
                     remove.add(connection)
                 }
@@ -732,8 +787,275 @@ class HandLandmarkerHelper (
         return combinedLines
     }
 
-    private fun strongLines(lines: Mat) : MutableList<Pair<Point,Point>> {
-        var cutoff = 6
+    private fun verticalRidge(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>>{
+        lines.sortBy { it.first.x }
+
+        val ridgeLines = mutableListOf<Pair<Point, Point>>()
+
+        while (lines.isNotEmpty()){
+            var line = lines.removeAt(0)
+            val remove = mutableListOf<Pair<Point, Point>>()
+            for (connection in lines){
+                val distance = connection.first.x - line.first.x
+                if (distance < 10){
+                    val x1 = line.first.x + (distance/2)
+                    val x2 = line.second.x + ((connection.second.x - line.second.x)/2)
+
+                    val y1 = if (line.first.y < connection.first.y){
+                        line.first.y
+                    } else{
+                        connection.first.y
+                    }
+
+                    val y2 = if (line.second.y > connection.second.y){
+                        line.second.y
+                    } else{
+                        connection.second.y
+                    }
+
+                    line = Pair(Point(x1,y1),Point(x2,y2))
+                    remove.add(connection)
+                }
+            }
+            for (connection in remove){
+                lines.remove(connection)
+            }
+
+            ridgeLines.add(line)
+        }
+
+        return ridgeLines
+    }
+
+    private fun selectFret(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        val n = lines.size
+        val sumX = lines.sumOf { it.first.x }
+        val sumY = lines.sumOf { it.first.y }
+        val sumXY = lines.sumOf { it.first.x * it.first.y }
+        val sumX2 = lines.sumOf { it.first.x * it.first.x }
+
+        val gradient = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+        val intercept = (sumY - gradient * sumX) / n
+
+        fun distanceToLine(p: Point): Double {
+            return abs(p.y - (gradient * p.x + intercept))
+        }
+
+        fun adjustStartPoint(p1 : Point, p2 : Point): Point {
+            val yOnRegression = gradient * p1.x + intercept
+            // Check if p1 and p2 are on opposite sides of the regression line.
+            if ((p1.y - yOnRegression) * (p2.y - yOnRegression) <= 0) {
+                // They cross: snap p1 to the regression line.
+                return Point(p1.x, yOnRegression)
+            }
+            // Otherwise, leave p1 as is.
+            return p1
+        }
+
+        val tolerance = 10.0
+        val selectedLines = mutableListOf<Pair<Point, Point>>()
+
+        for (line in lines) {
+            val (p1, p2) = line
+            // Adjust the start point if the line crosses the regression line.
+            val newStart = adjustStartPoint(p1, p2)
+            // Then keep the line if the (adjusted) start point is close to the regression line.
+            if (distanceToLine(newStart) < tolerance) {
+                selectedLines.add(Pair(newStart, p2))
+            }
+        }
+        return selectBottomFret(selectedLines)
+    }
+
+    private fun selectBottomFret(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        val n = lines.size
+        val sumX = lines.sumOf { it.second.x }
+        val sumY = lines.sumOf { it.second.y }
+        val sumXY = lines.sumOf { it.second.x * it.second.y }
+        val sumX2 = lines.sumOf { it.second.x * it.second.x }
+
+        val gradient = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
+        val intercept = (sumY - gradient * sumX) / n
+
+        fun distanceToLine(p: Point): Double {
+            return abs(p.y - (gradient * p.x + intercept))
+        }
+
+        fun adjustEndPoint(p1 : Point, p2 : Point): Point {
+            val yOnRegression = gradient * p2.x + intercept
+            // Check if p1 and p2 are on opposite sides of the regression line.
+            if ((p1.y - yOnRegression) * (p2.y - yOnRegression) <= 0) {
+                // They cross: snap p1 to the regression line.
+                return Point(p2.x, yOnRegression)
+            }
+            // Otherwise, leave p1 as is.
+            return p2
+        }
+
+        val tolerance = 10.0
+        val selectedLines = mutableListOf<Pair<Point, Point>>()
+
+        for (line in lines) {
+            val (p1, p2) = line
+            // Adjust the end point if the line crosses the regression line.
+            val newEnd = adjustEndPoint(p1, p2)
+            // Then keep the line if the (adjusted) start point is close to the regression line.
+            if (distanceToLine(newEnd) < tolerance) {
+                selectedLines.add(Pair(p1, newEnd))
+            }
+        }
+        return selectedLines
+    }
+
+    private fun fretLength(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        val lengthMap = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
+
+        for (line in lines){
+            val length = round((pointDistance(line.first, line.second))/10) * 10
+            lengthMap.computeIfAbsent(length) { mutableListOf()}.add(line)
+        }
+
+        val uniformFrets = lengthMap.maxByOrNull { it.value.size }?.value
+
+        if (uniformFrets.isNullOrEmpty()){
+            return emptyList<Pair<Point, Point>>().toMutableList()
+        }
+
+        return uniformFrets
+    }
+
+    private fun extrapolateFret4(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        if (lines.size < 2) return emptyList<Pair<Point,Point>>().toMutableList()
+
+        val distance = lines[lines.size-1].first.x - lines[lines.size - 2].first.x
+
+        if(lines[1].first.x - lines[0].first.x < distance){
+            lines.removeAt(1)
+        }
+
+
+        return lines
+    }
+
+    private fun extrapolateFret3(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        val fretLines = mutableListOf<Pair<Point, Point>>()
+        println("extrapolate")
+        lines.sortBy { it.first.x }
+        if (lines.size < 3) return fretLines
+
+        val fret1 = lines[1]
+        val lastFrets = lines.takeLast(4)
+        val j = lastFrets.size
+
+        val fretN = lastFrets[1]
+        val fretj = lastFrets.last()
+
+        val deltaN = fretN.first.x - fret1.first.x
+        val deltaNplusj = fretj.first.x - fretN.first.x
+
+        val R_measured = deltaNplusj / deltaN
+
+        val a = (2.0).pow(1.0/12)
+
+        val numerator = R_measured * a.pow(-1)
+        val denominator = 1 - a.pow(-j) + R_measured
+        val Y = numerator / denominator
+
+        val n = -(ln(Y) / ln(a))
+
+        val numFrets = n+j
+        println("frets")
+        println(numFrets)
+
+
+        if (numFrets < 2) return fretLines
+
+        val r = 1 / (2.0).pow(1.0 / 12.0)
+
+        val totalDistance = fretj.first.x - fret1.first.x
+
+        val seriesSum = (1 - r.pow(numFrets - 1)) / (1 - r)
+
+        val d1 = totalDistance / seriesSum
+
+        fretLines.add(fret1)
+
+        for (i in 2..numFrets.toInt()){
+            val gapSum = d1 * ((1 - r.pow(i - 1)) / 1 - r)
+            fretLines.add(Pair(Point(fret1.first.x + gapSum, fret1.first.y), Point(fret1.second.x + gapSum, fret1.second.y)))
+        }
+
+        return fretLines
+    }
+
+    private fun extrapolateFret2(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        val fretLines = mutableListOf<Pair<Point, Point>>()
+        lines.sortBy { it.first.x }
+        if (lines.size < 3) return fretLines
+
+        val fretDistances = lines.zipWithNext {p1, p2 -> p2.first.x - p1.first.x}
+
+        val ratios = fretDistances.zipWithNext {p1, p2 -> p2 / p1}
+
+        val ratio = ratios.average()
+
+        return fretLines
+    }
+
+    private fun extrapolateFret(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
+        lines.sortBy { it.first.x }
+
+        val rightmostFrets = lines.takeLast(6)
+
+        if (rightmostFrets.size < 3) return emptyList<Pair<Point, Point>>().toMutableList()
+
+        val fretDistances = mutableListOf<Double>()
+
+        for (i in 0 until rightmostFrets.size - 1){
+            fretDistances.add(rightmostFrets[i + 1].first.x - rightmostFrets[i].first.x)
+        }
+
+        val ratios = fretDistances.zipWithNext {d1, d2 -> d2 / d1}
+        var ratio = ratios.average()
+
+        val realRatio = 0.94387
+
+        var distance = fretDistances.last()
+
+        val extrapolatedFrets = mutableListOf<Pair<Point, Point>>()
+
+        println("ratio")
+        println(ratio)
+
+        if ((ratio * 10).toInt() == 0 || ratio > 1){
+            ratio = realRatio
+        }
+
+        println("success")
+
+        extrapolatedFrets.add(rightmostFrets.last())
+        extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 2])
+        var repeat = true
+        while (repeat){
+            distance /= ratio
+            val currentFret = extrapolatedFrets.last()
+
+            val x1 = currentFret.first.x - distance
+            val x2 = currentFret.second.x - distance
+
+            if(x1 < 0 && x2 < 0){
+                repeat = false
+                break
+            }
+            extrapolatedFrets.add(Pair(Point(x1,currentFret.first.y), Point(x2, currentFret.second.y)))
+        }
+
+        return extrapolatedFrets
+
+    }
+
+    private fun strongLines(lines: Mat, cutoff: Int, horizontal: Boolean) : MutableList<Pair<Point,Point>> {
+        var lineCounter = cutoff
         val strongLines = mutableListOf<Pair<Point,Point>>()
 
         for(i in 0 until lines.rows()){
@@ -747,14 +1069,24 @@ class HandLandmarkerHelper (
             //println(x2)
             var y2 = line[3].toDouble()
 
-            if (x1 > x2){
-                x1 = x2.also { x2 = x1 }
-                y1 = y2.also { y2 = y1 }
+            if(horizontal){
+                if (x1 > x2){
+                    x1 = x2.also { x2 = x1 }
+                    y1 = y2.also { y2 = y1 }
+                }
+            } else{
+                if (y1 > y2){
+                    x1 = x2.also { x2 = x1 }
+                    y1 = y2.also { y2 = y1 }
+                }
             }
 
             val gradient = abs(lineGrad(Point(x1,y1), Point(x2,y2)))
-            if (gradient < 1 && cutoff > 0) {
-                cutoff--
+            if (horizontal && (gradient < 1) && (lineCounter > 0)) {
+                lineCounter--
+                strongLines.add(Pair(Point(x1,y1), Point(x2,y2)))
+            } else if (!horizontal && gradient > 1 && lineCounter > 0) {
+                lineCounter--
                 strongLines.add(Pair(Point(x1,y1), Point(x2,y2)))
             }
 
@@ -776,19 +1108,20 @@ class HandLandmarkerHelper (
         )
 
         for(line in lines){
-            println("String " + counter.toString())
-            println(line.first)
-            println(line.second)
-            Imgproc.line(canvas, line.first, line.second, colors[counter], 1)
+            //println("String " + counter.toString())
+            //println(line.first)
+            //println(line.second)
+            Imgproc.line(canvas, line.first, line.second, colors[counter % 6], 1)
             counter++
         }
         println(counter)
         return canvas
     }
 
-    private fun applyTransforms(mat: Mat): Mat{
+    private fun applyTransforms(mat: Mat): Pair<Mat, Mat>{
         val grayMat = Mat()
         val edgesMat = Mat()
+        val maskedMat = Mat()
 
 
         Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY)
@@ -800,13 +1133,78 @@ class HandLandmarkerHelper (
 
         Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
 
-        val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
-        Imgproc.dilate(edgesMat, edgesMat, kernel, Point(-1.0, -1.0), 3)
+        val maskMat =Mat(edgesMat.size(), edgesMat.type(), Scalar(255.0))
+        val roi = Rect(0, 0, edgesMat.cols(), (edgesMat.rows() / 5) * 3)
+        val roi2 = Rect(edgesMat.cols() - 2, 0, 2, edgesMat.rows())
+        val roi3 = Rect(0, 0, 3, edgesMat.rows())
+        maskMat.submat(roi).setTo(Scalar(0.0))
+        maskMat.submat(roi2).setTo(Scalar(0.0))
+        maskMat.submat(roi3).setTo(Scalar(0.0))
 
-        Imgproc.erode(edgesMat, edgesMat, kernel, Point(-1.0, -1.0), 4)
+        Core.bitwise_and(edgesMat, maskMat, maskedMat)
 
-        return edgesMat
+        val horizontalMat = detectHorizontal(maskedMat)
+        val verticalMat = detectVertical(maskedMat)
+
+        //val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        //Imgproc.dilate(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 3)
+
+        //Imgproc.erode(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 4)
+
+        //val testMat = Mat()
+        //Imgproc.morphologyEx(maskedMat, testMat, Imgproc.MORPH_CLOSE, kernel)
+
+
+        return Pair(horizontalMat, verticalMat)
+        //return Pair(maskedMat, maskMat)
     }
+
+    private fun detectHorizontal(mat: Mat) : Mat{
+        //Remove Horizontal
+        val horizontalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0,1.0))
+
+        val noHorizontal = Mat()
+        Imgproc.erode(mat, noHorizontal, horizontalKernel)
+
+        val verticalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(1.0, 4.0))
+
+        val processedMat = Mat()
+        Imgproc.morphologyEx(noHorizontal, processedMat, Imgproc.MORPH_CLOSE, verticalKernel)
+
+        //val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
+        //Imgproc.dilate(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 3)
+
+        //Imgproc.erode(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 4)
+
+        //Strengthen Vertical
+        //Imgproc.Sobel(processedMat, processedMat, CvType.CV_16S, 1, 0)
+
+        //Core.convertScaleAbs(processedMat, processedMat)
+
+        return processedMat
+    }
+
+    private fun detectVertical(mat: Mat) : Mat{
+        //Remove Horizontal
+        val verticalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(1.0,2.0))
+
+        val noVertical = Mat()
+        Imgproc.erode(mat, noVertical, verticalKernel)
+
+        val horizontalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(8.0, 5.0))
+
+        val processedMat = Mat()
+        Imgproc.morphologyEx(noVertical, processedMat, Imgproc.MORPH_CLOSE, horizontalKernel)
+
+        //Strengthen Horizontal
+        //Imgproc.Sobel(processedMat, processedMat, CvType.CV_16S, 0, 1)
+
+        //Core.convertScaleAbs(processedMat, processedMat)
+
+        return processedMat
+    }
+
+
 
     private fun overlapX(line1: Pair<Point, Point>, line2: Pair<Point, Point>): Boolean {
         return if (line2.first.x + 10 >= line1.first.x && line2.first.x - 10 <= line1.second.x){
@@ -917,7 +1315,7 @@ class HandLandmarkerHelper (
 
     data class ResultBundle(
         val results: List<HandLandmarkerResult>,
-        val guitar: List<Pair<Point,Point>>,
+        val guitar: List<List<Point?>>,
         val inferenceTime: Long,
         val inputImageHeight: Int,
         val inputImageWidth: Int,

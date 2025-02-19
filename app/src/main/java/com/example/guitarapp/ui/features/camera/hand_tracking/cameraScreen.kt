@@ -364,7 +364,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 val content  = overlayTab.content
                 if(content != null){
                     val notes = content.split(",")
-                    val playedStringsList = mutableListOf<Int>()
+                    val playedStringsList = mutableListOf<Pair<Int,Int>>()
                     for (i in 0 until 6){
                         val index = 5-i
                         val split = notes[i].split("-")
@@ -398,7 +398,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }
                         } else{
-                            playedStringsList.add(i)
+                            playedStringsList.add(Pair(i, fret.toInt()))
                             val notePoint = grid[fret.toInt()][index]
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.White,
@@ -424,7 +424,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                     when(handTrackingResult){
                         is Result.Success -> {
                             val data = (handTrackingResult as Result.Success).resultBundle
-                            val stringLocations = data.guitar
+                            val noteLocations = data.guitar
                             val imageWidth = data.inputImageWidth
                             val imageHeight = data.inputImageHeight
                             val widthScaleFactor = (width * 1f) / imageWidth
@@ -443,7 +443,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }
 
-                            if(stringLocations.isNotEmpty()){
+                            /*if(stringLocations.isNotEmpty()){
                                 for (playedString in playedStringsList){
                                     val string = stringLocations[5- playedString]
                                     drawLine(
@@ -451,6 +451,17 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                         start = Offset(((string.first.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.first.y.toFloat() * imageHeight * heightScaleFactor),
                                         end = Offset(((string.second.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.second.y.toFloat() * imageHeight * heightScaleFactor),
                                         strokeWidth = 5f
+                                    )
+                                }
+                            }*/
+
+                            for(playedString in playedStringsList){
+                                val coords = noteLocations[5 - playedString.first][playedString.second]
+                                if (coords != null){
+                                    drawCircle(
+                                        color = androidx.compose.ui.graphics.Color.Green,
+                                        center = Offset((coords.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,coords.y.toFloat() * imageHeight * heightScaleFactor),
+                                        radius = 15f
                                     )
                                 }
                             }
