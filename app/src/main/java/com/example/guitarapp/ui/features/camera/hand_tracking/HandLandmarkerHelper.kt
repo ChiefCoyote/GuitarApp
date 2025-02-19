@@ -535,17 +535,20 @@ class HandLandmarkerHelper (
                 averageRightDistance += lines[i + 1].second.y - lines[i].second.y
             }
 
-            averageLeftDistance /= lines.size
-            averageRightDistance /= lines.size
+            averageLeftDistance /= (lines.size - 1)
+            averageRightDistance /= (lines.size - 1)
 
-            averageLeftDistance *= 2
-            averageRightDistance *= 2
+            //averageLeftDistance *= 2
+            //averageRightDistance *= 2
+            println("average Distances")
+            println(averageLeftDistance)
+            println(averageRightDistance)
 
             extrapolatedLines.add(lines.first())
 
-            for (i in 1 until 6) {
-                val lineAbove = extrapolatedLines[i - 1]
-                extrapolatedLines.add(
+            for (i in lines.size until 6) {
+                val lineAbove = lines[i - 1]
+                lines.add(
                     Pair(
                         Point(lineAbove.first.x, lineAbove.first.y + averageLeftDistance),
                         Point(lineAbove.second.x, lineAbove.second.y + averageRightDistance)
@@ -553,7 +556,7 @@ class HandLandmarkerHelper (
                 )
             }
 
-            return extrapolatedLines
+            return lines
         } else{
             return mutableListOf()
         }
@@ -677,6 +680,7 @@ class HandLandmarkerHelper (
             val yintercept = round(findIntercept(line.first,line.second)/10) * 10
             yMap.getOrPut(yintercept) { mutableListOf()}.add(line)
         }
+        println(yMap.keys)
         for ((_, segments) in yMap){
             if(segments.size == 1){
                 singleLines.add(segments.first())
@@ -699,13 +703,12 @@ class HandLandmarkerHelper (
                     }
                 }
 
+
                 singleLines.add(Pair(leftMost, rightMost))
             }
         }
 
-
-
-        return lines
+        return singleLines
     }
 
     private fun combineLines(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
