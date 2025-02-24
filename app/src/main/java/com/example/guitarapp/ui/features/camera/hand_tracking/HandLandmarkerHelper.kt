@@ -259,7 +259,7 @@ class HandLandmarkerHelper (
         val ridgedVertical = verticalRidge(combinedVertical)
         val frets = selectFret(ridgedVertical)
 
-        val extrapolatedFrets = extrapolateFret4(frets)
+        val extrapolatedFrets = extrapolateFret(frets)
 
         val extendedLines = extendLines(combinedHorizontal)
 
@@ -1020,21 +1020,31 @@ class HandLandmarkerHelper (
 
         val realRatio = 0.94387
 
-        var distance = fretDistances.last()
+
 
         val extrapolatedFrets = mutableListOf<Pair<Point, Point>>()
 
         println("ratio")
         println(ratio)
 
-        if ((ratio * 10).toInt() == 0 || ratio > 1){
+        /*if ((ratio * 10).toInt() == 0 || ratio > 1){
             ratio = realRatio
-        }
+        }*/
+
+        ratio = realRatio
 
         println("success")
 
-        extrapolatedFrets.add(rightmostFrets.last())
+        /*extrapolatedFrets.add(rightmostFrets.last())
         extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 2])
+        extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 3])*/
+
+        for (i in 1 until rightmostFrets.size + 1){
+            extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - i])
+        }
+
+        var distance = fretDistances[0]
+
         var repeat = true
         while (repeat){
             distance /= ratio
