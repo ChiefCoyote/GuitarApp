@@ -291,9 +291,10 @@ class HandLandmarkerHelper (
 
 
 
-        for(i in 0 until 5){
+        for(i in 0 until 6){
             val x = fretList[0].first.x
             combinedCoords[i][0] = Point(x, findYCoord(stringList[i], x))
+            println(x)
         }
 
 
@@ -771,6 +772,8 @@ class HandLandmarkerHelper (
             fretDistances.add(rightmostFrets[i + 1].first.x - rightmostFrets[i].first.x)
         }
 
+
+
         val ratios = fretDistances.zipWithNext {d1, d2 -> d2 / d1}
         var ratio = ratios.average()
 
@@ -791,15 +794,92 @@ class HandLandmarkerHelper (
 
         println("success")
 
-        /*extrapolatedFrets.add(rightmostFrets.last())
-        extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 2])
-        extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 3])*/
+        //extrapolatedFrets.add(rightmostFrets.last())
+        //extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 2])
+        //extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 3])
 
         for (i in 1 until rightmostFrets.size + 1){
             extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - i])
         }
+        //CALCULATE DISTANCES
+        val fillDistances = mutableListOf<Double>()
+
+        for (i in 0 until extrapolatedFrets.size - 1) {
+            fillDistances.add(extrapolatedFrets[i].first.x - extrapolatedFrets[i + 1].first.x)
+        }
+        if (fillDistances[0] < 20) return emptyList<Pair<Point, Point>>().toMutableList()
+
+        //FORWARD PASS TO CORRECT ERRORS
+        var forwardLoop = fillDistances.size
+        var counter = 1
+        while (counter < forwardLoop){
+            if (fillDistances[counter] < (fillDistances[counter - 1] / realRatio) - 10){
+                //REMOVE CURRENT FRET
+                if(counter + 1 < fillDistances.size){
+                    val ammendDistance = fillDistances[counter] + fillDistances[counter + 1]
+                    fillDistances[counter + 1] = ammendDistance
+                }
+
+                fillDistances.removeAt(counter)
+                extrapolatedFrets.removeAt(counter + 1)
+
+                forwardLoop--
+                counter--
+
+            }
+            else if (fillDistances[counter] > (fillDistances[counter - 1] / realRatio) + 10){
+                //ADD NEW FRET
+                val newDistance = fillDistances[counter - 1] / realRatio
+                val previousFret = extrapolatedFrets[counter]
+
+                val x1 = previousFret.first.x - newDistance
+                val x2 = previousFret.second.x - newDistance
+
+                if (x1 < 0 || x2 < 0) {
+                    break
+                }
+
+                //println(x1)
+                //println(x2)
+
+                extrapolatedFrets.add(counter + 1 ,Pair(Point(x1,previousFret.first.y -40), Point(x2, previousFret.second.y + 40)))
+                fillDistances.add(counter, newDistance)
+
+                val ammendDistance = fillDistances[counter + 1] - newDistance
+                fillDistances[counter + 1] = ammendDistance
+
+                forwardLoop++
+
+
+                //HAVE A MAX OF 20 FRETS TO STOP INFINITE LOOP
+                if(forwardLoop > 20){
+                    break
+                }
+            }
+            counter++
+        }
+
+        var distanceSize = fillDistances.size
+
+        //BACKWARD PASS TO FILL MISSING SLOTS
+        /*for (i in 1 until distanceSize){
+            val index = distanceSize - i - 1
+            if (fillDistances[index] > (fillDistances[index + 1]/ ratio) + 20){
+                val newDistance = fillDistances[index + 1] / ratio
+                val nextFret = extrapolatedFrets[index + 1]
+
+                val x1 = nextFret.first.x - newDistance
+                val x2 = nextFret.second.x - newDistance
+
+                extrapolatedFrets.add(index + 1,Pair(Point(x1,nextFret.first.y), Point(x2, nextFret.second.y)))
+                fillDistances.add(index + 1, newDistance)
+                distanceSize +=1
+            }
+        }*/
 
         var distance = fretDistances[0]
+        //println("DISTANCE")
+        //println(distance)
 
         var repeat = true
         while (repeat){

@@ -401,7 +401,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             }
                         } else{
                             usedFingers.add(finger.toInt())
-                            playedStringsList.add(Pair(i, fret.toInt()))
+                            playedStringsList.add(Pair(i, fret.toInt() - 1))
                             val notePoint = grid[fret.toInt()][index]
                             drawCircle(
                                 color = androidx.compose.ui.graphics.Color.White,
@@ -469,6 +469,50 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                     )
                                 }
                             }
+
+                            val fret1 = guitarTrackingResult[0][0]
+                            val fret2 = guitarTrackingResult[1][0]
+                            val fret3 = guitarTrackingResult[2][0]
+                            val fret4 = guitarTrackingResult[3][0]
+                            val fret5 = guitarTrackingResult[4][0]
+                            val fret6 = guitarTrackingResult[5][0]
+
+
+                            if(fret1 != null && fret2 != null && fret3 != null && fret4 != null && fret5 != null && fret6 != null){
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret1.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret1.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret2.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret2.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret3.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret3.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret4.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret4.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret5.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret5.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+                                drawCircle(
+                                    color = androidx.compose.ui.graphics.Color.Yellow,
+                                    center = Offset((fret6.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret6.y.toFloat() * imageHeight * heightScaleFactor),
+                                    radius = 20f
+                                )
+
+                            }
+
+
 
 
 
