@@ -68,6 +68,7 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.hypot
 import androidx.camera.core.Preview as camPreview
 import androidx.compose.ui.graphics.Color as graphColor
 
@@ -432,20 +433,6 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             val widthScaleFactor = (width * 1f) / imageWidth
                             val heightScaleFactor = (height * 1f) / imageHeight
 
-                            val landmarkIndices = intArrayOf(4,8,12,16,20)
-
-
-                            val landMarkData =data.results.first()
-                            for (landmark in landMarkData.landmarks()){
-                                for (landmarkindex in landmarkIndices) {
-                                    drawCircle(
-                                        color = androidx.compose.ui.graphics.Color.Red,
-                                        center = Offset((landmark[landmarkindex].x() * (width - blackbarSize - blackbarSize)) + blackbarSize,landmark[landmarkindex].y() * imageHeight * heightScaleFactor),
-                                        radius = 20f
-                                    )
-
-                                }
-                            }
 
                             /*if(stringLocations.isNotEmpty()){
                                 for (playedString in playedStringsList){
@@ -459,18 +446,28 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }*/
 
+                            val checkLocation = mutableListOf<org.opencv.core.Point>()
+                            var recognisedLocations = false
+
                             for(playedString in playedStringsList){
                                 val coords = guitarTrackingResult[5 - playedString.first][playedString.second]
                                 if (coords != null){
+                                    checkLocation.add(coords)
                                     drawCircle(
-                                        color = androidx.compose.ui.graphics.Color.Green,
+                                        color = androidx.compose.ui.graphics.Color.Blue,
                                         center = Offset((coords.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,coords.y.toFloat() * imageHeight * heightScaleFactor),
                                         radius = 15f
                                     )
                                 }
                             }
 
-                            val fret1 = guitarTrackingResult[0][0]
+                            if (checkLocation.isNotEmpty()){
+                                recognisedLocations = true
+                            }
+
+
+                            //CHECK LOCATION OF FIRST FRET
+                            /*val fret1 = guitarTrackingResult[0][0]
                             val fret2 = guitarTrackingResult[1][0]
                             val fret3 = guitarTrackingResult[2][0]
                             val fret4 = guitarTrackingResult[3][0]
@@ -510,12 +507,55 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                     radius = 20f
                                 )
 
+                            }*/
+
+
+
+
+                            val landmarkIndices = intArrayOf(4,8,12,16,20)
+
+
+                            val landMarkData =data.results.first()
+                            for (landmark in landMarkData.landmarks()){
+                                for (landmarkindex in landmarkIndices) {
+                                    var fingerColour = androidx.compose.ui.graphics.Color.Red
+                                    val landmarkLocation = org.opencv.core.Point(((landmark[landmarkindex].x() * (width - blackbarSize - blackbarSize)) + blackbarSize).toDouble(),(landmark[landmarkindex].y() * imageHeight * heightScaleFactor).toDouble())
+
+                                   for(coord in checkLocation){
+                                       val coordx = (coord.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize
+                                       val coordy = coord.y.toFloat() * imageHeight * heightScaleFactor
+                                       /*drawCircle(
+                                           color = androidx.compose.ui.graphics.Color.Yellow,
+                                           center = Offset(coordx, coordy),
+                                           radius = 20f
+                                       )*/
+
+                                       if(pointDistance(landmarkLocation, org.opencv.core.Point(
+                                               coordx.toDouble(), coordy.toDouble()
+                                           )) < 40){
+                                           fingerColour = androidx.compose.ui.graphics.Color.Green
+                                           checkLocation.remove(coord)
+                                           break
+                                       }
+                                   }
+
+                                    drawCircle(
+                                        color = fingerColour,
+                                        center = Offset(landmarkLocation.x.toFloat(), landmarkLocation.y.toFloat()),
+                                        radius = 20f
+                                    )
+
+                                }
                             }
 
-
-
-
-
+                            if (checkLocation.isEmpty() && recognisedLocations){
+                                drawRect(
+                                    color = androidx.compose.ui.graphics.Color.Green,
+                                    topLeft = Offset(blackbarSize.toFloat(), 0f),
+                                    size = Size((width - blackbarSize - blackbarSize.toFloat()), height.toFloat()),
+                                    style = Stroke(width = 5f)
+                                )
+                            }
                         }
 
                         is Result.Loading -> {
@@ -538,6 +578,10 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
 
     }
 
+}
+
+private fun pointDistance(point1: org.opencv.core.Point, point2: org.opencv.core.Point): Double {
+    return hypot(point2.x - point1.x, point2.y - point1.y)
 }
 
 fun getFileName(context: Context, uri: Uri): String {
