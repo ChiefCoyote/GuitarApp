@@ -37,6 +37,7 @@ import org.opencv.android.Utils
 import org.opencv.core.Core
 import org.opencv.core.CvType
 import org.opencv.core.Mat
+import org.opencv.core.MatOfPoint
 import org.opencv.core.Point
 import org.opencv.core.Rect
 import org.opencv.core.Scalar
@@ -236,30 +237,28 @@ class HandLandmarkerHelper (
         val transformedMats = applyTransforms(mat)
 
         val horizMat = transformedMats.first
-        val vertMat = transformedMats.second
+        val maskMat = transformedMats.second
 
         var colorMat = Mat()
         val horizontalLines = Mat()
         val verticalLines = Mat()
 
 
-        val lsd = Imgproc.createLineSegmentDetector()
-        lsd.detect(vertMat, verticalLines)
+
 
         Imgproc.HoughLinesP(horizMat, horizontalLines, 1.0, Math.PI / 180, 100, 75.0, 20.0)
         //Imgproc.HoughLinesP(vertMat, verticalLines, 1.0, Math.PI / 180, 100, 20.0, 20.0)
         Imgproc.cvtColor(horizMat, colorMat, Imgproc.COLOR_GRAY2BGR)
 
         val strongHorizontal = strongLines(horizontalLines, 6,true)
-        val strongVertical = strongLines(verticalLines, 50,false)
+
 
         val combinedHorizontal = combineLines(strongHorizontal, true)
-        val combinedVertical = combineLines(strongVertical, false)
 
-        val ridgedVertical = verticalRidge(combinedVertical)
-        val frets = selectFret(ridgedVertical)
 
-        val extrapolatedFrets = extrapolateFret(frets).reversed().toMutableList()
+
+
+
 
         val extendedLines = extendLines(combinedHorizontal)
 
@@ -275,7 +274,17 @@ class HandLandmarkerHelper (
         //val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
         //Utils.matToBitmap(colorMat, finalBitmap)
 
+        val vertMat = detectVertical(maskMat, extrapolatedStrings)
 
+        val lsd = Imgproc.createLineSegmentDetector()
+        lsd.detect(vertMat, verticalLines)
+
+
+        val strongVertical = strongLines(verticalLines, 50,false)
+        val combinedVertical = combineLines(strongVertical, false)
+        val ridgedVertical = verticalRidge(combinedVertical)
+        val frets = selectFret(ridgedVertical)
+        val extrapolatedFrets = extrapolateFret(frets).reversed().toMutableList()
         //return finalBitmap
 
         val combinedCoords = combineLocations(extrapolatedStrings, extrapolatedFrets)
@@ -990,7 +999,7 @@ class HandLandmarkerHelper (
         Core.bitwise_and(edgesMat, maskMat, maskedMat)
 
         val horizontalMat = detectHorizontal(maskedMat)
-        val verticalMat = detectVertical(maskedMat)
+        //val verticalMat = detectVertical(maskedMat)
 
         //val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
         //Imgproc.dilate(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 3)
@@ -1001,7 +1010,7 @@ class HandLandmarkerHelper (
         //Imgproc.morphologyEx(maskedMat, testMat, Imgproc.MORPH_CLOSE, kernel)
 
 
-        return Pair(horizontalMat, verticalMat)
+        return Pair(horizontalMat, maskedMat)
         //return Pair(maskedMat, maskMat)
     }
 
@@ -1030,12 +1039,38 @@ class HandLandmarkerHelper (
         return processedMat
     }
 
-    private fun detectVertical(mat: Mat) : Mat{
+    private fun detectVertical(mat: Mat, stringList: MutableList<Pair<Point,Point>>) : Mat{
+        val result = Mat()
+
+        if (stringList.size > 1){
+            //Mask to fretboard
+            val topString = stringList[0]
+            val bottomString = stringList.last()
+
+            val maskMat =Mat(mat.size(), mat.type(), Scalar(0.0))
+            val polygon = ArrayList<Point>()
+            polygon.add(topString.first)
+            polygon.add(topString.second)
+            polygon.add(bottomString.second)
+            polygon.add(bottomString.first)
+
+            val matOfPoint = MatOfPoint(*polygon.toTypedArray())
+            Imgproc.fillPoly(maskMat, listOf(matOfPoint), Scalar(255.0))
+
+
+
+            mat.copyTo(result, maskMat)
+        } else {
+            mat.copyTo(result)
+        }
+
+
+
         //Remove Horizontal
         val verticalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(1.0,2.0))
 
         val noVertical = Mat()
-        Imgproc.erode(mat, noVertical, verticalKernel)
+        Imgproc.erode(result, noVertical, verticalKernel)
 
         val horizontalKernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(8.0, 5.0))
 
