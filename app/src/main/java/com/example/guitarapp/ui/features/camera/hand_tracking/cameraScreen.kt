@@ -446,6 +446,18 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }*/
 
+                            for(temp in guitarTrackingResult){
+                                for(location in temp){
+                                    if(location != null){
+                                        drawCircle(
+                                            color = androidx.compose.ui.graphics.Color.White,
+                                            center = Offset((location.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,location.y.toFloat() * imageHeight * heightScaleFactor),
+                                            radius = 15f
+                                        )
+                                    }
+                                }
+                            }
+
                             val checkLocation = mutableListOf<org.opencv.core.Point>()
                             var recognisedLocations = false
 
@@ -464,6 +476,8 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             if (checkLocation.isNotEmpty()){
                                 recognisedLocations = true
                             }
+
+
 
 
                             //CHECK LOCATION OF FIRST FRET
