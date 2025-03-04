@@ -989,7 +989,7 @@ class HandLandmarkerHelper (
         Imgproc.Canny(grayMat, edgesMat, 50.0, 100.0)
 
         val maskMat =Mat(edgesMat.size(), edgesMat.type(), Scalar(255.0))
-        val roi = Rect(0, 0, edgesMat.cols(), (edgesMat.rows() / 5) * 3)
+        val roi = Rect(0, 0, edgesMat.cols(), (edgesMat.rows() / 7) * 3)
         val roi2 = Rect(edgesMat.cols() - 2, 0, 2, edgesMat.rows())
         val roi3 = Rect(0, 0, 3, edgesMat.rows())
         maskMat.submat(roi).setTo(Scalar(0.0))

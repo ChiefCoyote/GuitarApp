@@ -526,7 +526,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
 
 
 
-                            val landmarkIndices = intArrayOf(4,8,12,16,20)
+                            val landmarkIndices = intArrayOf(8,12,16,20)
 
 
                             val landMarkData =data.results.first()
@@ -546,7 +546,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
 
                                        if(pointDistance(landmarkLocation, org.opencv.core.Point(
                                                coordx.toDouble(), coordy.toDouble()
-                                           )) < 40){
+                                           )) < 60){
                                            fingerColour = androidx.compose.ui.graphics.Color.Green
                                            checkLocation.remove(coord)
                                            break
