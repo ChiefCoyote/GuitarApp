@@ -446,7 +446,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                 }
                             }*/
 
-                            for(temp in guitarTrackingResult){
+                            /*for(temp in guitarTrackingResult){
                                 for(location in temp){
                                     if(location != null){
                                         drawCircle(
@@ -456,7 +456,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                         )
                                     }
                                 }
-                            }
+                            }*/
 
                             val checkLocation = mutableListOf<org.opencv.core.Point>()
                             var recognisedLocations = false

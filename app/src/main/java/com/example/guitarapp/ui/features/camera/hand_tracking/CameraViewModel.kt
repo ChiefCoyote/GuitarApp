@@ -38,6 +38,10 @@ class CameraViewModel : ViewModel() {
         withContext(Dispatchers.Main) {
             _handTrackingResult.value = Result.Success(resultBundle)
 
+            println("Size")
+            println(resultBundle.guitar.size)
+            println(resultBundle.guitar[0].size)
+
             if (coordBuffer.size >= 10){
                 coordBuffer.removeFirst()
             }
