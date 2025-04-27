@@ -51,9 +51,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -79,20 +77,14 @@ fun CameraScreen(
 
 ) {
     val overlayViewModel: OverlayViewModel = viewModel(factory = OverlayModelFactory((LocalContext.current.applicationContext as TabApplication).repository))
-    // Use overlayViewModel as needed
     CameraContent(cameraViewModel, overlayViewModel)
 
 }
 //
 @Composable
 private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: OverlayViewModel) {
-    val cameraState : CameraState by cameraViewModel.state.collectAsStateWithLifecycle()
     val handTrackingResult by cameraViewModel.handTrackingResult.collectAsStateWithLifecycle()
     val guitarTrackingResult by cameraViewModel.guitarTrackingResult.collectAsStateWithLifecycle()
-    val configuration = LocalConfiguration.current
-    val density = LocalDensity.current.density
-    val screenWidth = configuration.screenWidthDp * density
-    val screenHeight = configuration.screenHeightDp * density
     val backgroundExecutor = remember{ Executors.newSingleThreadExecutor() }
     DisposableEffect(Unit) {
         onDispose {
@@ -101,7 +93,6 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
     }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    //val cameraController = remember { LifecycleCameraController(context) }
 
     val windowManager = context.getSystemService(WindowManager::class.java)
     val metrics = windowManager?.currentWindowMetrics
@@ -304,9 +295,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                 val blackbarSize = (width - ((height / 3) * 4)) / 2
 
                 val start = width - blackbarSize
-                val end = width
                 val barWidth = blackbarSize
-                val barHeight = height
                 val chartWidth = (barWidth/20) * 14
                 val chartHeight = (height/2)
                 val chartPad = (barWidth/20) * 3
@@ -354,15 +343,6 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                         strokeWidth = 5f
                     )
                 }
-                /*for (row in grid) {
-                    for (col in row) {
-                        drawCircle(
-                            color = androidx.compose.ui.graphics.Color.White,
-                            center = Offset(col.y.toFloat(), col.x.toFloat()),
-                            radius = 20f
-                        )
-                    }
-                }*/
                 val content  = overlayTab.content
                 if(content != null){
                     val notes = content.split(",")
@@ -430,33 +410,7 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             val data = (handTrackingResult as Result.Success).resultBundle
                             val imageWidth = data.inputImageWidth
                             val imageHeight = data.inputImageHeight
-                            val widthScaleFactor = (width * 1f) / imageWidth
                             val heightScaleFactor = (height * 1f) / imageHeight
-
-
-                            /*if(stringLocations.isNotEmpty()){
-                                for (playedString in playedStringsList){
-                                    val string = stringLocations[5- playedString]
-                                    drawLine(
-                                        color = androidx.compose.ui.graphics.Color.Green,
-                                        start = Offset(((string.first.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.first.y.toFloat() * imageHeight * heightScaleFactor),
-                                        end = Offset(((string.second.x.toFloat()) * (width - blackbarSize - blackbarSize)) + blackbarSize, string.second.y.toFloat() * imageHeight * heightScaleFactor),
-                                        strokeWidth = 5f
-                                    )
-                                }
-                            }*/
-
-                            /*for(temp in guitarTrackingResult){
-                                for(location in temp){
-                                    if(location != null){
-                                        drawCircle(
-                                            color = androidx.compose.ui.graphics.Color.White,
-                                            center = Offset((location.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,location.y.toFloat() * imageHeight * heightScaleFactor),
-                                            radius = 15f
-                                        )
-                                    }
-                                }
-                            }*/
 
                             val checkLocation = mutableListOf<org.opencv.core.Point>()
                             var recognisedLocations = false
@@ -478,54 +432,6 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                             }
 
 
-
-
-                            //CHECK LOCATION OF FIRST FRET
-                            /*val fret1 = guitarTrackingResult[0][0]
-                            val fret2 = guitarTrackingResult[1][0]
-                            val fret3 = guitarTrackingResult[2][0]
-                            val fret4 = guitarTrackingResult[3][0]
-                            val fret5 = guitarTrackingResult[4][0]
-                            val fret6 = guitarTrackingResult[5][0]
-
-
-                            if(fret1 != null && fret2 != null && fret3 != null && fret4 != null && fret5 != null && fret6 != null){
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret1.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret1.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret2.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret2.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret3.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret3.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret4.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret4.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret5.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret5.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-                                drawCircle(
-                                    color = androidx.compose.ui.graphics.Color.Yellow,
-                                    center = Offset((fret6.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize,fret6.y.toFloat() * imageHeight * heightScaleFactor),
-                                    radius = 20f
-                                )
-
-                            }*/
-
-
-
-
                             val landmarkIndices = intArrayOf(8,12,16,20)
 
 
@@ -538,11 +444,6 @@ private fun CameraContent(cameraViewModel: CameraViewModel, overlayViewModel: Ov
                                    for(coord in checkLocation){
                                        val coordx = (coord.x.toFloat() * (width - blackbarSize - blackbarSize)) + blackbarSize
                                        val coordy = coord.y.toFloat() * imageHeight * heightScaleFactor
-                                       /*drawCircle(
-                                           color = androidx.compose.ui.graphics.Color.Yellow,
-                                           center = Offset(coordx, coordy),
-                                           radius = 20f
-                                       )*/
 
                                        if(pointDistance(landmarkLocation, org.opencv.core.Point(
                                                coordx.toDouble(), coordy.toDouble()

@@ -37,7 +37,7 @@ private fun NoPermissionContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "You must grant camera and microphone permissions to use this app.")
+        Text(text = "You must grant camera permissions so your playing can be analysed.")
         Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onRequestPermission) {
             Icon(imageVector = Icons.Default.Camera, contentDescription = "Camera")

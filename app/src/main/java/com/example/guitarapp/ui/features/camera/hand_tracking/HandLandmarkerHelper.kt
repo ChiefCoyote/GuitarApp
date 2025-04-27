@@ -46,8 +46,6 @@ import org.opencv.imgproc.CLAHE
 import org.opencv.imgproc.Imgproc
 import kotlin.math.abs
 import kotlin.math.hypot
-import kotlin.math.ln
-import kotlin.math.pow
 import kotlin.math.round
 
 class HandLandmarkerHelper (
@@ -243,36 +241,18 @@ class HandLandmarkerHelper (
         val horizontalLines = Mat()
         val verticalLines = Mat()
 
-
-
-
         Imgproc.HoughLinesP(horizMat, horizontalLines, 1.0, Math.PI / 180, 100, 75.0, 20.0)
-        //Imgproc.HoughLinesP(vertMat, verticalLines, 1.0, Math.PI / 180, 100, 20.0, 20.0)
         Imgproc.cvtColor(horizMat, colorMat, Imgproc.COLOR_GRAY2BGR)
 
         val strongHorizontal = strongLines(horizontalLines, 6,true)
 
-
         val combinedHorizontal = combineLines(strongHorizontal, true)
-
-
-
-
-
 
         val extendedLines = extendLines(combinedHorizontal)
 
         val singleLines = removeDuplicateLines(extendedLines)
 
         val extrapolatedStrings = extrapolateStrings3(singleLines)
-
-        //colorMat = drawLines(extrapolatedFrets, colorMat)
-        //colorMat = drawLines(extrapolatedFrets, colorMat)
-        //colorMat = drawLines(combinedHorizontal, colorMat)
-        //colorMat = drawLines(extrapolatedStrings, colorMat)
-
-        //val finalBitmap = Bitmap.createBitmap(colorMat.cols(), colorMat.rows(), Bitmap.Config.ARGB_8888)
-        //Utils.matToBitmap(colorMat, finalBitmap)
 
         val vertMat = detectVertical(maskMat, extrapolatedStrings)
 
@@ -353,8 +333,6 @@ class HandLandmarkerHelper (
             averageLeftDistance /= (lines.size - 1)
             averageRightDistance /= (lines.size - 1)
 
-            //averageLeftDistance *= 2
-            //averageRightDistance *= 2
             println("average Distances")
             println(averageLeftDistance)
             println(averageRightDistance)
@@ -377,87 +355,6 @@ class HandLandmarkerHelper (
         }
     }
 
-    private fun extrapolateStrings2(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
-        if(lines.size > 2) {
-            lines.sortBy { findIntercept(it.first, it.second) }
-
-
-            var averageLeftDistance = 0.0
-            var averageRightDistance = 0.0
-
-            for (i in 0 until lines.size - 1) {
-                averageLeftDistance += lines[i + 1].first.y - lines[i].first.y
-                averageRightDistance += lines[i + 1].second.y - lines[i].second.y
-            }
-
-            averageLeftDistance /= lines.size
-            averageRightDistance /= lines.size
-
-            for (i in lines.size until 6) {
-                val lineAbove = lines[i - 1]
-                lines.add(
-                    Pair(
-                        Point(lineAbove.first.x, lineAbove.first.y + averageLeftDistance),
-                        Point(lineAbove.second.x, lineAbove.second.y + averageRightDistance)
-                    )
-                )
-            }
-
-            return lines
-        } else{
-            return mutableListOf()
-        }
-    }
-
-    private fun extrapolateStrings(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point,Point>> {
-        if (lines.size > 2){
-            val extrapolatedStrings = mutableListOf<Pair<Point,Point>>()
-            val stringHeights = mutableListOf<Double>()
-            for (line in lines){
-                val yintercept = round(findIntercept(line.first,line.second)/10) * 10
-                stringHeights.add(yintercept)
-            }
-
-            //println(stringHeights)
-
-            stringHeights.sort()
-            var minDistance = Double.POSITIVE_INFINITY
-
-            for (i in 0 until stringHeights.size - 1){
-                //println(stringHeights[i+1])
-                //println(stringHeights[i])
-                val difference = stringHeights[i+1] - stringHeights[i]
-                if ((difference < minDistance) && (difference != 0.0)){
-                    minDistance = difference
-                }
-            }
-
-            //println(minDistance)
-            lines.sortBy { it.first.y }
-
-            val topString = lines.first()
-            val gradient = lineGrad(topString.first, topString.second)
-            val yIntercept = findIntercept(topString.first, topString.second)
-
-            for (i in 0 until 6){
-                val x1 = topString.first.x
-                val x2 = topString.second.x
-                val newIntercept = yIntercept + (minDistance * i)
-
-                val y1 = (x1 * gradient) + newIntercept
-                val y2 = (x2 * gradient) + newIntercept
-
-                //println(y1)
-                extrapolatedStrings.add(Pair(Point(x1,y1), Point(x2,y2)))
-            }
-            return extrapolatedStrings
-        } else {
-            return mutableListOf()
-        }
-
-
-
-    }
 
     private fun extrapolateLine(line : Pair<Point,Point>, startX : Double, endX : Double) : Pair<Point,Point>{
         val gradient = lineGrad(line.first, line.second)
@@ -673,101 +570,6 @@ class HandLandmarkerHelper (
         return selectedLines
     }
 
-    private fun fretLength(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
-        val lengthMap = mutableMapOf<Double, MutableList<Pair<Point, Point>>>()
-
-        for (line in lines){
-            val length = round((pointDistance(line.first, line.second))/10) * 10
-            lengthMap.computeIfAbsent(length) { mutableListOf()}.add(line)
-        }
-
-        val uniformFrets = lengthMap.maxByOrNull { it.value.size }?.value
-
-        if (uniformFrets.isNullOrEmpty()){
-            return emptyList<Pair<Point, Point>>().toMutableList()
-        }
-
-        return uniformFrets
-    }
-
-    private fun extrapolateFret4(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
-        if (lines.size < 2) return emptyList<Pair<Point,Point>>().toMutableList()
-
-        val distance = lines[lines.size-1].first.x - lines[lines.size - 2].first.x
-
-        if(lines[1].first.x - lines[0].first.x < distance){
-            lines.removeAt(1)
-        }
-
-
-        return lines
-    }
-
-    private fun extrapolateFret3(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
-        val fretLines = mutableListOf<Pair<Point, Point>>()
-        println("extrapolate")
-        lines.sortBy { it.first.x }
-        if (lines.size < 3) return fretLines
-
-        val fret1 = lines[1]
-        val lastFrets = lines.takeLast(4)
-        val j = lastFrets.size
-
-        val fretN = lastFrets[1]
-        val fretj = lastFrets.last()
-
-        val deltaN = fretN.first.x - fret1.first.x
-        val deltaNplusj = fretj.first.x - fretN.first.x
-
-        val R_measured = deltaNplusj / deltaN
-
-        val a = (2.0).pow(1.0/12)
-
-        val numerator = R_measured * a.pow(-1)
-        val denominator = 1 - a.pow(-j) + R_measured
-        val Y = numerator / denominator
-
-        val n = -(ln(Y) / ln(a))
-
-        val numFrets = n+j
-        println("frets")
-        println(numFrets)
-
-
-        if (numFrets < 2) return fretLines
-
-        val r = 1 / (2.0).pow(1.0 / 12.0)
-
-        val totalDistance = fretj.first.x - fret1.first.x
-
-        val seriesSum = (1 - r.pow(numFrets - 1)) / (1 - r)
-
-        val d1 = totalDistance / seriesSum
-
-        fretLines.add(fret1)
-
-        for (i in 2..numFrets.toInt()){
-            val gapSum = d1 * ((1 - r.pow(i - 1)) / 1 - r)
-            fretLines.add(Pair(Point(fret1.first.x + gapSum, fret1.first.y), Point(fret1.second.x + gapSum, fret1.second.y)))
-        }
-
-        return fretLines
-    }
-
-    private fun extrapolateFret2(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
-        val fretLines = mutableListOf<Pair<Point, Point>>()
-        lines.sortBy { it.first.x }
-        if (lines.size < 3) return fretLines
-
-        val fretDistances = lines.zipWithNext {p1, p2 -> p2.first.x - p1.first.x}
-
-        val ratios = fretDistances.zipWithNext {p1, p2 -> p2 / p1}
-
-        val ratio = ratios.average()
-
-        return fretLines
-    }
-
     private fun extrapolateFret(lines: MutableList<Pair<Point,Point>>) : MutableList<Pair<Point, Point>> {
         lines.sortBy { it.first.x }
 
@@ -781,31 +583,12 @@ class HandLandmarkerHelper (
             fretDistances.add(rightmostFrets[i + 1].first.x - rightmostFrets[i].first.x)
         }
 
-
-
-        val ratios = fretDistances.zipWithNext {d1, d2 -> d2 / d1}
-        var ratio = ratios.average()
-
         val realRatio = 0.94387
 
 
 
         val extrapolatedFrets = mutableListOf<Pair<Point, Point>>()
 
-        println("ratio")
-        println(ratio)
-
-        /*if ((ratio * 10).toInt() == 0 || ratio > 1){
-            ratio = realRatio
-        }*/
-
-        ratio = realRatio
-
-        println("success")
-
-        //extrapolatedFrets.add(rightmostFrets.last())
-        //extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 2])
-        //extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - 3])
 
         for (i in 1 until rightmostFrets.size + 1){
             extrapolatedFrets.add(rightmostFrets[rightmostFrets.size - i])
@@ -848,8 +631,6 @@ class HandLandmarkerHelper (
                     break
                 }
 
-                //println(x1)
-                //println(x2)
 
                 extrapolatedFrets.add(counter + 1 ,Pair(Point(x1,previousFret.first.y -40), Point(x2, previousFret.second.y + 40)))
                 fillDistances.add(counter, newDistance)
@@ -868,41 +649,27 @@ class HandLandmarkerHelper (
             counter++
         }
 
-        var distanceSize = fillDistances.size
-
         //BACKWARD PASS TO FILL MISSING SLOTS
-        /*for (i in 1 until distanceSize){
-            val index = distanceSize - i - 1
-            if (fillDistances[index] > (fillDistances[index + 1]/ ratio) + 20){
-                val newDistance = fillDistances[index + 1] / ratio
-                val nextFret = extrapolatedFrets[index + 1]
-
-                val x1 = nextFret.first.x - newDistance
-                val x2 = nextFret.second.x - newDistance
-
-                extrapolatedFrets.add(index + 1,Pair(Point(x1,nextFret.first.y), Point(x2, nextFret.second.y)))
-                fillDistances.add(index + 1, newDistance)
-                distanceSize +=1
-            }
-        }*/
 
         var distance = fretDistances[0]
-        //println("DISTANCE")
-        //println(distance)
 
         var repeat = true
-        while (repeat){
-            distance /= ratio
+        while (repeat) {
+            distance /= realRatio
             val currentFret = extrapolatedFrets.last()
 
             val x1 = currentFret.first.x - distance
             val x2 = currentFret.second.x - distance
 
-            if(x1 < 0 && x2 < 0){
-                repeat = false
+            if (x1 < 0 && x2 < 0) {
                 break
             }
-            extrapolatedFrets.add(Pair(Point(x1,currentFret.first.y), Point(x2, currentFret.second.y)))
+            extrapolatedFrets.add(
+                Pair(
+                    Point(x1, currentFret.first.y),
+                    Point(x2, currentFret.second.y)
+                )
+            )
         }
 
         return extrapolatedFrets
@@ -915,15 +682,10 @@ class HandLandmarkerHelper (
 
         for(i in 0 until lines.rows()){
             val line = lines.get(i, 0)
-            //println(line)
-            var x1 = line[0].toDouble()
-            //println(x1)
-            var y1 = line[1].toDouble()
-            //println(y1)
-            var x2 = line[2].toDouble()
-            //println(x2)
-            var y2 = line[3].toDouble()
-
+            var x1 = line[0]
+            var y1 = line[1]
+            var x2 = line[2]
+            var y2 = line[3]
             if(horizontal){
                 if (x1 > x2){
                     x1 = x2.also { x2 = x1 }
@@ -963,9 +725,6 @@ class HandLandmarkerHelper (
         )
 
         for(line in lines){
-            //println("String " + counter.toString())
-            //println(line.first)
-            //println(line.second)
             Imgproc.line(canvas, line.first, line.second, colors[counter % 6], 1)
             counter++
         }
@@ -999,19 +758,8 @@ class HandLandmarkerHelper (
         Core.bitwise_and(edgesMat, maskMat, maskedMat)
 
         val horizontalMat = detectHorizontal(maskedMat)
-        //val verticalMat = detectVertical(maskedMat)
-
-        //val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
-        //Imgproc.dilate(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 3)
-
-        //Imgproc.erode(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 4)
-
-        //val testMat = Mat()
-        //Imgproc.morphologyEx(maskedMat, testMat, Imgproc.MORPH_CLOSE, kernel)
-
 
         return Pair(horizontalMat, maskedMat)
-        //return Pair(maskedMat, maskMat)
     }
 
     private fun detectHorizontal(mat: Mat) : Mat{
@@ -1025,16 +773,6 @@ class HandLandmarkerHelper (
 
         val processedMat = Mat()
         Imgproc.morphologyEx(noHorizontal, processedMat, Imgproc.MORPH_CLOSE, verticalKernel)
-
-        //val kernel = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, Size(2.0, 2.0))
-        //Imgproc.dilate(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 3)
-
-        //Imgproc.erode(maskedMat, maskedMat, kernel, Point(-1.0, -1.0), 4)
-
-        //Strengthen Vertical
-        //Imgproc.Sobel(processedMat, processedMat, CvType.CV_16S, 1, 0)
-
-        //Core.convertScaleAbs(processedMat, processedMat)
 
         return processedMat
     }
@@ -1077,29 +815,9 @@ class HandLandmarkerHelper (
         val processedMat = Mat()
         Imgproc.morphologyEx(noVertical, processedMat, Imgproc.MORPH_CLOSE, horizontalKernel)
 
-        //Strengthen Horizontal
-        //Imgproc.Sobel(processedMat, processedMat, CvType.CV_16S, 0, 1)
-
-        //Core.convertScaleAbs(processedMat, processedMat)
-
         return processedMat
     }
 
-
-
-    private fun overlapX(line1: Pair<Point, Point>, line2: Pair<Point, Point>): Boolean {
-        return if (line2.first.x + 10 >= line1.first.x && line2.first.x - 10 <= line1.second.x){
-            true
-        } else if (line2.second.x + 10 >= line1.first.x && line2.second.x - 10 <= line1.second.x) {
-            true
-        } else if (line1.first.x + 10 >= line2.first.x && line1.first.x - 10 <= line2.second.x) {
-            true
-        } else if (line1.second.x + 10 >= line2.first.x && line1.second.x - 10 <= line2.second.x) {
-            true
-        } else{
-            false
-        }
-    }
 
     private fun pointDistance(point1: Point, point2: Point): Double {
         return hypot(point2.x - point1.x, point2.y - point1.y)
@@ -1119,60 +837,6 @@ class HandLandmarkerHelper (
         return intercept
     }
 
-    /*private fun greatestCluster(yValues: List<Double>): List<Double> {
-        if (yValues.isEmpty()) return emptyList()
-
-        val yArray = yValues.map { doubleArrayOf(it) }.toTypedArray()
-
-        val clusters = kmeans(yArray, 6)
-
-        val sortClusters = yValues.indices.groupBy { clusters.y[it] }.mapValues { (_, indices) -> indices.map { yValues[it] } }
-
-        println("clusters")
-        for ((cluster, points) in sortClusters) {
-            println(cluster)
-            println(points)
-        }
-
-        val biggestCluster = sortClusters.maxByOrNull { it.value.size }?.value
-
-        return if (biggestCluster.isNullOrEmpty()){
-            emptyList()
-        } else{
-            biggestCluster
-        }
-
-    }*/
-
-
-    private fun topString(yValues: List<Double>): Pair<Double, Double> {
-        val gaps = mutableListOf<Double>()
-        val sortedValues = yValues.sorted()
-        for (i in 0 until sortedValues.size - 1) {
-            for (j in (i + 1) until sortedValues.size) {
-                val gap = abs(sortedValues[i] - sortedValues[j])
-                if (gap > 5){
-                    gaps.add(gap)
-                }
-            }
-        }
-
-        gaps.sort()
-
-        val returnGap = if(gaps.size > 0){
-            gaps[0]
-        } else {
-            0.0
-        }
-
-        val returnYVvlaue = if(sortedValues.isNotEmpty()){
-            sortedValues[0]
-        } else {
-            0.0
-        }
-
-        return Pair(returnGap, returnYVvlaue)
-    }
 
     override fun onResume(owner: LifecycleOwner) {
         setupHandLandmarker()
