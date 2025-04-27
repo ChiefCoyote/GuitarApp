@@ -283,7 +283,6 @@ class HandLandmarkerHelper (
         for(i in 0 until 6){
             val x = fretList[0].first.x
             combinedCoords[i][0] = Point(x, findYCoord(stringList[i], x))
-            println(x)
         }
 
 
@@ -332,10 +331,6 @@ class HandLandmarkerHelper (
 
             averageLeftDistance /= (lines.size - 1)
             averageRightDistance /= (lines.size - 1)
-
-            println("average Distances")
-            println(averageLeftDistance)
-            println(averageRightDistance)
 
             extrapolatedLines.add(lines.first())
 
@@ -392,7 +387,6 @@ class HandLandmarkerHelper (
             val yintercept = round(findIntercept(line.first,line.second)/10) * 10
             yMap.getOrPut(yintercept) { mutableListOf()}.add(line)
         }
-        println(yMap.keys)
         for ((_, segments) in yMap){
             if(segments.size == 1){
                 singleLines.add(segments.first())
@@ -728,7 +722,6 @@ class HandLandmarkerHelper (
             Imgproc.line(canvas, line.first, line.second, colors[counter % 6], 1)
             counter++
         }
-        println(counter)
         return canvas
     }
 

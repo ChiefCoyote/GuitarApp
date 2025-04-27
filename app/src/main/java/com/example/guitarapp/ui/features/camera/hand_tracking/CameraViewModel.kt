@@ -8,23 +8,20 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.opencv.core.Point
 import java.util.concurrent.Executor
 
 class CameraViewModel : ViewModel() {
+
     private lateinit var handLandmarkerHelper: HandLandmarkerHelper
     private val _state = MutableStateFlow(CameraState())
-    val state = _state.asStateFlow()
 
     private val _handTrackingResult = MutableStateFlow<Result>(Result.Loading)
-    //val handTrackingResult = _handTrackingResult.asStateFlow()
     val handTrackingResult : StateFlow<Result> = _handTrackingResult
 
     private val _guitarTrackingResult = MutableStateFlow<List<List<Point?>>>(emptyList())
-    //val handTrackingResult = _handTrackingResult.asStateFlow()
     val guitarTrackingResult : StateFlow<List<List<Point?>>> = _guitarTrackingResult
 
     private val coordBuffer = ArrayDeque<List<List<Point?>>>(1)
@@ -36,11 +33,8 @@ class CameraViewModel : ViewModel() {
 
     suspend fun onResultsReceived(resultBundle: HandLandmarkerHelper.ResultBundle) {
         withContext(Dispatchers.Main) {
-            _handTrackingResult.value = Result.Success(resultBundle)
 
-            println("Size")
-            println(resultBundle.guitar.size)
-            println(resultBundle.guitar[0].size)
+            _handTrackingResult.value = Result.Success(resultBundle)
 
             if (coordBuffer.size >= 10){
                 coordBuffer.removeFirst()
@@ -100,7 +94,6 @@ class CameraViewModel : ViewModel() {
 
                     override fun onResults(resultBundle: HandLandmarkerHelper.ResultBundle) {
                         viewModelScope.launch {
-                            //println(resultBundle.results.first())
                             onResultsReceived(resultBundle)
                         }
                     }

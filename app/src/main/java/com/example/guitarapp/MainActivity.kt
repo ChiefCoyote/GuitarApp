@@ -27,7 +27,6 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        println("something")
 
         val window = window
         val controller = window.insetsController
