@@ -33,4 +33,4 @@ If a chord is muted use an 'x' if it is open use a '0'
 In both of these cases the finger should be '_'
 
 ## Example:
-D Chord|3-2,4-3,2-2,_-0,_-x,_-x
+D Chord|3-2,4-3,2-2,\_-0,\_-x,\_-x
