@@ -28,7 +28,7 @@ Follow with a '|' character
 Next comes 6 groups of 'x-x' separated by commas
 These are to represent the 6 strings, first is which finger should press the string and the second is which fret is being pressed
 
-If a chord is musted use an 'x' if it is open use a '0'
+If a chord is muted use an 'x' if it is open use a '0'
 
 In both of these cases the finger should be '_'
 
